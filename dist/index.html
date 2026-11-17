@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="theme-color" content="#0c1426" />
+    <title>Gráficos</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230c1426'/%3E%3Cpath d='M7 6v20M7 10h-2M7 20h2M16 9v16M16 13h-2M16 21h2M25 4v18M25 8h-2M25 16h2' stroke='%23089981' stroke-width='2.5'/%3E%3C/svg%3E" />
+    <script type="module" crossorigin src="/assets/index-Cd7hXQ8w.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DJQ7Dv0_.css">
+  </head>
+  <body>
+    <header id="topbar">
+      <button id="btn-sidebar" class="icon-btn" title="Mostrar/ocultar la watchlist">☰</button>
+      <div class="brand"><span id="cur-symbol">—</span><span id="cur-desc" class="dim"></span></div>
+      <div class="group">
+        <button id="btn-grid" class="tb" title="Cuadrícula de 6 gráficos">▦ 6 gráficos</button>
+        <button id="btn-single" class="tb" title="Un solo gráfico grande">▢ Uno grande</button>
+      </div>
+      <div class="group">
+        <button id="btn-hline" class="tb" title="Línea horizontal (Alt+H). Haz clic en el gráfico para colocarla.">― Línea horizontal</button>
+      </div>
+      <div id="line-editor" class="line-editor" style="display: none">
+        <span class="dim">Línea:</span>
+        <span class="le-swatches"></span>
+        <input class="le-color" type="color" title="Otro color" />
+        <select class="le-width" title="Grosor">
+          <option value="1">1px</option>
+          <option value="2">2px</option>
+          <option value="3">3px</option>
+          <option value="4">4px</option>
+        </select>
+        <select class="le-style" title="Estilo">
+          <option value="0">Sólida</option>
+          <option value="2">Discontinua</option>
+          <option value="1">Punteada</option>
+        </select>
+        <input class="le-price" type="text" inputmode="decimal" title="Precio" />
+        <button class="le-del tb danger" title="Borrar (tecla Supr)">🗑 Borrar</button>
+        <button class="le-close icon-btn" title="Deseleccionar (Esc)">✕</button>
+      </div>
+      <div class="spacer"></div>
+      <span id="server-warn" class="warn" style="display: none" title="Los dibujos y ajustes no se están guardando">⚠ Sin conexión con el servidor</span>
+      <span class="dim small" id="provider-name"></span>
+      <span id="conn" class="conn connecting" title="Conectando…"></span>
+    </header>
+    <main id="main">
+      <aside id="watchlist"></aside>
+      <section id="charts"></section>
+    </main>
+    <footer id="footer">
+      Gráficos con
+      <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a>
+      (Apache 2.0) · Datos de mercado:
+      <a href="https://www.binance.com/" target="_blank" rel="noopener">Binance</a> · Uso privado familiar
+    </footer>
+  </body>
+</html>
