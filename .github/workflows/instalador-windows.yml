@@ -1,0 +1,46 @@
+name: Instalador Windows
+
+# Genera el instalador .exe en un Windows de GitHub y lo publica en
+# "Releases" con el nombre "Última versión".
+
+on:
+  push:
+    branches: [main, fase-1-prototipo]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: instalador-windows
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Compilar la app
+        run: npm run build
+
+      - name: Crear el instalador
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Publicar en Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ultima-version --yes --cleanup-tag || true
+          gh release create ultima-version release/*.exe \
+            --title "Última versión (${GITHUB_REF_NAME})" \
+            --notes "Instalador de Windows generado automáticamente desde la rama ${GITHUB_REF_NAME} (commit ${GITHUB_SHA::7}). Descarga el archivo .exe de abajo y ábrelo." \
+            --target "$GITHUB_SHA" --latest

@@ -71,9 +71,9 @@ body {
   gap: 4px;
   padding: 3px 8px;
   background: var(--ui);
-  border-bottom: 4px solid #000;
+  border-bottom: 3px solid #000;
   flex-wrap: wrap;
-  min-height: 40px;
+  min-height: 34px;
 }
 .symbox {
   background: var(--ui2);
@@ -122,6 +122,10 @@ body {
 }
 .tb.on {
   background: var(--ui3);
+  color: #fff;
+}
+.tb.install {
+  background: var(--accent);
   color: #fff;
 }
 .tb.danger:hover {
@@ -204,7 +208,7 @@ body {
 
 /* Barra de herramientas de la izquierda */
 #toolbar {
-  width: 48px;
+  width: 42px;
   flex-shrink: 0;
   background: var(--ui);
   display: flex;
@@ -214,8 +218,8 @@ body {
   padding-top: 6px;
 }
 .tool {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border: none;
   border-radius: 6px;
   background: transparent;

@@ -89,7 +89,10 @@ export class Watchlist {
         this.hub.provider
           .getSymbolInfo(s)
           .then((i) => (precision = i.precision))
-          .catch(() => r.classList.add('wl-bad'));
+          .catch((e) => {
+            // Sólo se tacha si el proveedor dice que el símbolo no existe (no por un fallo de red).
+            if (e instanceof Error && /no encontrado|Invalid symbol|Binance:/i.test(e.message)) r.classList.add('wl-bad');
+          });
         this.unsubs.set(
           s,
           this.hub.provider.subscribeDayTicker(s, (t) => this.paint(r, t, precision)),

@@ -1,18 +1,20 @@
 {
   "name": "graficos-familia",
   "version": "0.1.0",
-  "description": "App familiar de gráficos de trading (fase 1)",
+  "description": "Gráficos familia: app privada de gráficos de trading",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "start": "node --no-warnings server/server.mjs",
-    "check": "tsc"
+    "check": "tsc",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win nsis --x64"
   },
   "license": "UNLICENSED",
-  "dependencies": {
-    "lightweight-charts": "^5.3.0"
-  },
   "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.0.12",
+    "lightweight-charts": "^5.3.0",
     "typescript": "^5.9.3",
     "vite": "^6.4.6"
   },
@@ -20,5 +22,48 @@
   "type": "module",
   "engines": {
     "node": ">=22.13"
+  },
+  "main": "electron/main.mjs",
+  "author": "Jose",
+  "build": {
+    "appId": "es.familia.graficos",
+    "productName": "Graficos familia",
+    "copyright": "Uso privado familiar",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "server/**",
+      "electron/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Graficos-familia-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Gráficos familia",
+      "uninstallDisplayName": "Gráficos familia",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "language": "3082"
+    }
   }
 }
