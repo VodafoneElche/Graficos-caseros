@@ -49,6 +49,8 @@ export interface PanelCfg {
   rsi: boolean;
   volume: boolean;
   pivots: boolean;
+  /** Leyenda de indicadores desplegada (como el "⌄ 5" de TradingView). */
+  legendOpen: boolean;
 }
 
 export interface LayoutCfg {

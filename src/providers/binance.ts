@@ -185,6 +185,11 @@ export class BinanceProvider implements DataProvider {
     throw lastErr;
   }
 
+  supportsSymbol(symbol: string): boolean {
+    // Pares de cripto de Binance: terminan en una moneda de cotización conocida.
+    return /^[A-Z0-9]{2,}(USDT|USDC|FDUSD|BTC|ETH|BNB|EUR|TRY)$/.test(symbol.toUpperCase());
+  }
+
   getSymbolInfo(symbol: string): Promise<SymbolInfo> {
     const s = symbol.toUpperCase();
     let p = this.infoCache.get(s);

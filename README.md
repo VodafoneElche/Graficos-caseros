@@ -31,13 +31,13 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 
 | Qué | Cómo |
 |---|---|
-| Cambiar de símbolo | Clic en la watchlist de la izquierda. Cambian los 6 gráficos a la vez. |
-| Añadir un símbolo | Escribe el par (p. ej. `ETHUSDT`) abajo en la watchlist y pulsa **+**. Para quitarlo, pasa el ratón por encima y pulsa ✕. |
-| Cuadrícula / gráfico grande | Botones **6 gráficos** y **Uno grande** arriba. También: doble clic en la cabecera de un gráfico o botón ⤢. |
-| Cambiar la temporalidad de un gráfico | Desplegable junto al símbolo en cada gráfico (45s, 1m, 2m, 5m, 10m, 15m, 30m, 1h, 3h, 4h, D, S, M). |
-| Mostrar/ocultar indicadores | Botones de la cabecera de cada gráfico: E18, E20, E50, S200, MTF, RSI, Vol, Piv. |
-| Configurar medias y medias de otra temporalidad | Botón ⚙ de cada gráfico. Ahí cambias periodo, tipo (EMA/SMA), color, grosor, y añades medias tipo "EMA 50 de 15m". |
-| Línea horizontal | Botón **Línea horizontal** (o **Alt+H**) y clic en el gráfico. Aparece en los 6 gráficos del mismo símbolo. |
+| Cambiar de símbolo | Clic en la lista de seguimiento de la derecha. Cambian los 6 gráficos a la vez. Los símbolos en gris (oro, plata, acciones) tendrán datos en la fase 4. |
+| Añadir un símbolo | Escribe el par (p. ej. `ETHUSDT`) abajo en la lista y pulsa **+**. Para quitarlo, pasa el ratón por encima y pulsa ✕. |
+| Cuadrícula / gráfico grande | Botones **6 gráficos** y **Uno grande** arriba. También el botón ⤢ que aparece en la leyenda al pasar el ratón, o doble clic sobre las fechas de abajo. |
+| Cambiar la temporalidad de un gráfico | Haz clic en el gráfico (queda con borde azul) y pulsa la temporalidad en la barra de arriba (45s, 1m, 2m, 5m, 10m, 15m, 30m, 1h, 3h, 4h, D, S, M). |
+| Mostrar/ocultar indicadores | En la leyenda de arriba a la izquierda, con el ojo de cada indicador (como en TradingView). `⌄ 5` despliega la lista y `⌃` la recoge. |
+| Configurar medias y medias de otra temporalidad | Botón ⚙ de la leyenda (o clic en el nombre del símbolo de la leyenda). Ahí cambias periodo, tipo (EMA/SMA), color, grosor, y añades medias tipo "EMA 50 de 15m". |
+| Línea horizontal | Botón de línea horizontal en la barra de la izquierda (o **Alt+H**) y clic en el gráfico. Aparece en los 6 gráficos del mismo símbolo. |
 | Mover una línea | Arrástrala con el ratón (el cursor cambia a ↕ encima de la línea). |
 | Color, grosor, precio exacto o borrar | Haz clic en la línea: arriba aparece la barra de edición. **Supr** la borra, **Esc** la deselecciona. |
 | Más historia | Desplaza el gráfico hacia la izquierda: carga velas antiguas automáticamente. |
@@ -48,9 +48,13 @@ El punto de color de arriba a la derecha indica la conexión en tiempo real con 
 
 ---
 
+## Aspecto
+
+Copiado de la configuración de TradingView de Jose: fondo azul marino `#000d2e` sin cuadrícula, velas alcistas huecas blancas y bajistas grises `#4a4a4a`, EMA 20 blanca, EMA 50 roja, SMA 200 morada, medias de otra temporalidad naranjas, líneas horizontales amarillas, valores de los indicadores en el eje derecho y números en formato español (64.663,50). La configuración de Fibonacci y de la caja de posición ya está guardada en `src/core/toolDefaults.ts` para la fase 3.
+
 ## Qué incluye la fase 1
 
-- Cuadrícula de 6 gráficos del mismo símbolo: **1D, 4h, 1h, 15m, 5m y 45s**, con cruz sincronizada (mismo precio y misma hora en todos).
+- Cuadrícula de 6 gráficos del mismo símbolo en 2 columnas x 3 filas (izquierda **1D, 4h, 1h**; derecha **15m, 5m, 45s**), con cruz sincronizada (mismo precio y misma hora en todos).
 - Vista de un solo gráfico grande.
 - Temporalidades que Binance no da se construyen agregando velas menores: **45s** (de velas de 1s), **2m** (de 1m), **10m** (de 5m), **3h** (de 1h).
 - Indicadores: **EMA 18, EMA 20, EMA 50, SMA 200**, medias **multi-temporalidad** (MTF, dibujadas escalonadas), **RSI 14 con su media de 14**, **volumen** y **Pivots Traditional** automáticos (como en TradingView: diarios hasta 15m, semanales hasta 4h, mensuales en diario, anuales en S/M).

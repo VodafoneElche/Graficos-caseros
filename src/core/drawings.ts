@@ -8,7 +8,7 @@ import type { HLine } from './types';
 
 type Listener = () => void;
 
-export const LINE_COLORS = ['#f23645', '#ff9800', '#ffeb3b', '#4caf50', '#00bcd4', '#2962ff', '#9c27b0', '#e0e3eb'];
+export const LINE_COLORS = ['#ffeb3b', '#f23645', '#ff9800', '#089981', '#2962ff', '#7e57c2', '#ffffff', '#787b86'];
 
 function newId(): string {
   return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);

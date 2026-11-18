@@ -90,7 +90,9 @@ export class PivotsPrimitive implements ISeriesPrimitive<Time> {
           ctx.stroke();
           if (showLabel) {
             ctx.globalAlpha = 0.9;
-            ctx.fillText(`${lv.name} (${this.formatPrice(lv.price)})`, x1 + 3 * hr, yy - 2 * vr);
+            const label = `${lv.name} (${this.formatPrice(lv.price)})`;
+            // Etiqueta a la derecha del tramo.
+            ctx.fillText(label, Math.max(x1 + 3 * hr, x2 - ctx.measureText(label).width - 3 * hr), yy - 2 * vr);
           }
         }
       }

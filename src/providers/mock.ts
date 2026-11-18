@@ -59,6 +59,10 @@ export class MockProvider implements DataProvider {
   readonly nativeTimeframes = NATIVE;
   readonly maxBarsPerRequest = 1000;
 
+  supportsSymbol(symbol: string): boolean {
+    return /USDT$/.test(symbol);
+  }
+
   async getSymbolInfo(symbol: string): Promise<SymbolInfo> {
     const s = symbol.toUpperCase();
     const p = basePrice(s);

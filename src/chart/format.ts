@@ -43,3 +43,17 @@ export function formatVolume(v: number): string {
   if (v >= 1e3) return (v / 1e3).toFixed(2) + 'K';
   return v.toFixed(2);
 }
+
+/** Precio con formato español: 64.663,50 (punto de miles, coma decimal). */
+export function formatPrice(p: number, precision: number): string {
+  if (!Number.isFinite(p)) return '—';
+  const s = Math.abs(p).toFixed(precision);
+  const [int, dec] = s.split('.');
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (p < 0 ? '-' : '') + grouped + (dec ? ',' + dec : '');
+}
+
+/** Volumen abreviado al estilo de TradingView: 274,67M. */
+export function formatVolumeEs(v: number): string {
+  return formatVolume(v).replace('.', ',');
+}

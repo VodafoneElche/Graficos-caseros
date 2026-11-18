@@ -39,6 +39,9 @@ export interface DataProvider {
   /** Máximo de velas por petición REST. */
   readonly maxBarsPerRequest: number;
 
+  /** ¿Este proveedor da datos de este símbolo? (Los que no, se ven en gris en la watchlist.) */
+  supportsSymbol(symbol: string): boolean;
+
   /** Comprueba que el símbolo existe y devuelve sus decimales. */
   getSymbolInfo(symbol: string): Promise<SymbolInfo>;
 

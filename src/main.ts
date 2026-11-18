@@ -8,6 +8,7 @@ import type { HLine, LayoutCfg, PanelCfg } from './core/types';
 import { createProvider } from './providers';
 import type { SymbolInfo } from './providers/provider';
 import { DEFAULT_WATCHLIST, normalizeLayout } from './ui/defaults';
+import { tfLabel, USER_TFS } from './core/timeframes';
 import { openPanelSettings } from './ui/panelSettings';
 import { tools } from './ui/tools';
 import { Watchlist } from './ui/watchlist';
@@ -30,12 +31,12 @@ const chartsEl = $('#charts');
 let saveTimer: number | null = null;
 function saveLayout() {
   try {
-    localStorage.setItem('layout', JSON.stringify(layout));
+    localStorage.setItem('layout2', JSON.stringify(layout));
   } catch {
     /* sin almacenamiento local */
   }
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => api.putSetting('layout', layout).catch(() => {}), 800);
+  saveTimer = window.setTimeout(() => api.putSetting('layout2', layout).catch(() => {}), 800);
 }
 
 // ── Gráficos ───────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ function buildPanels() {
       hub,
       drawings,
       sync,
-      maximizeLabel: layout.mode === 'grid' ? 'Ver este gráfico en grande (doble clic en la cabecera)' : 'Volver a la cuadrícula de 6',
+      onActivate: (p) => setActivePanel(p),
       onConfigChange: (c: PanelCfg) => {
         if (layout.mode === 'grid') layout.grid[idx] = c;
         else layout.single = c;
@@ -64,11 +65,42 @@ function buildPanels() {
         buildPanels();
         renderModeButtons();
       },
-      onOpenSettings: (p) => openPanelSettings(p.cfg, (c) => p.setConfig(c)),
+      onOpenSettings: (p) =>
+        openPanelSettings(p.cfg, (c) => {
+          p.setConfig(c);
+          renderTfButtons();
+        }),
     });
     if (symbolInfo) panel.setSymbol(layout.symbol, symbolInfo);
     panels.push(panel);
   });
+  const keep = layout.mode === 'grid' ? Math.min(activeIdx, panels.length - 1) : 0;
+  setActivePanel(panels[keep]);
+}
+
+// ── Gráfico activo y botones de temporalidad ───────────────────────────────
+let activeIdx = 0;
+let activePanel: ChartPanel | null = null;
+function setActivePanel(p: ChartPanel) {
+  activePanel = p;
+  if (layout.mode === 'grid') activeIdx = panels.indexOf(p);
+  panels.forEach((x) => x.setActive(x === p && layout.mode === 'grid'));
+  renderTfButtons();
+}
+function renderTfButtons() {
+  const box = $('#tf-buttons');
+  box.innerHTML = '';
+  for (const tf of USER_TFS) {
+    const b = document.createElement('button');
+    b.className = 'tfb' + (activePanel?.cfg.tf === tf ? ' on' : '');
+    b.textContent = tfLabel(tf);
+    b.title = layout.mode === 'grid' ? 'Cambia la temporalidad del gráfico seleccionado (borde azul)' : 'Temporalidad';
+    b.onclick = () => {
+      activePanel?.setTimeframe(tf);
+      renderTfButtons();
+    };
+    box.appendChild(b);
+  }
 }
 
 async function setSymbol(symbol: string) {
@@ -83,7 +115,6 @@ async function setSymbol(symbol: string) {
     symbolInfo = { symbol, description: symbol, precision: 2, minMove: 0.01 };
     console.warn(e);
   }
-  $('#cur-desc').textContent = symbolInfo.description;
   drawings.setSymbol(symbol);
   for (const p of panels) p.setSymbol(symbol, symbolInfo);
 }
@@ -109,7 +140,11 @@ $('#btn-single').onclick = () => {
   renderModeButtons();
 };
 $('#btn-hline').onclick = () => tools.toggle('hline');
-tools.subscribe((t) => $('#btn-hline').classList.toggle('on', t === 'hline'));
+$('#btn-cursor').onclick = () => tools.set('none');
+tools.subscribe((t) => {
+  $('#btn-hline').classList.toggle('on', t === 'hline');
+  $('#btn-cursor').classList.toggle('on', t === 'none');
+});
 $('#btn-sidebar').onclick = () => document.body.classList.toggle('hide-sidebar');
 
 // Estado de conexión
@@ -185,7 +220,7 @@ const watchlist = new Watchlist(
   $('#watchlist'),
   hub,
   (s) => setSymbol(s),
-  (list) => api.putSetting('watchlist', list).catch(() => {}),
+  (list) => api.putSetting('watchlist2', list).catch(() => {}),
 );
 
 // ── Arranque ───────────────────────────────────────────────────────────────
@@ -195,10 +230,10 @@ const watchlist = new Watchlist(
   let saved: Partial<LayoutCfg> | null = null;
   let wl: string[] | null = null;
   try {
-    [saved, wl] = await Promise.all([api.getSetting<LayoutCfg>('layout'), api.getSetting<string[]>('watchlist')]);
+    [saved, wl] = await Promise.all([api.getSetting<LayoutCfg>('layout2'), api.getSetting<string[]>('watchlist2')]);
   } catch {
     try {
-      saved = JSON.parse(localStorage.getItem('layout') || 'null');
+      saved = JSON.parse(localStorage.getItem('layout2') || 'null');
     } catch {
       saved = null;
     }

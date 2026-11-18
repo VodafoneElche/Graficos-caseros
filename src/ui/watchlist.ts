@@ -1,5 +1,6 @@
 import type { DataHub } from '../core/store';
 import type { DayTicker } from '../providers/provider';
+import { formatPrice } from '../chart/format';
 
 // Lista lateral de símbolos con último precio, cambio y % del día.
 
@@ -17,9 +18,10 @@ export class Watchlist {
     private onChange: (symbols: string[]) => void,
   ) {
     root.innerHTML = `
-      <div class="wl-head"><span>Watchlist</span><span class="dim">Último · Cambio · %</span></div>
+      <div class="wl-title">Lista de seguimiento</div>
+      <div class="wl-row wl-cols"><span>Símbolo</span><span>Último</span><span>Cambio</span><span>%</span><span></span></div>
       <div class="wl-list"></div>
-      <form class="wl-add"><input placeholder="Añadir (p. ej. ETHUSDT)" spellcheck="false" autocapitalize="characters"><button>+</button></form>
+      <form class="wl-add"><input placeholder="Añadir símbolo (p. ej. ETHUSDT)" spellcheck="false" autocapitalize="characters"><button>+</button></form>
       <div class="wl-msg dim"></div>`;
     this.listEl = root.querySelector('.wl-list')!;
     const form = root.querySelector('form')!;
@@ -35,7 +37,7 @@ export class Watchlist {
       }
       msg.textContent = 'Comprobando…';
       try {
-        await this.hub.provider.getSymbolInfo(s);
+        if (this.hub.provider.supportsSymbol(s)) await this.hub.provider.getSymbolInfo(s);
         this.setSymbols([...this.symbols, s]);
         this.onChange(this.symbols);
         input.value = '';
@@ -63,9 +65,10 @@ export class Watchlist {
         row.className = 'wl-row';
         row.innerHTML = `<span class="wl-sym"></span><span class="wl-last">…</span><span class="wl-ch"></span><span class="wl-pct"></span><button class="wl-del" title="Quitar de la lista">✕</button>`;
         row.querySelector('.wl-sym')!.textContent = s;
+        const supported = this.hub.provider.supportsSymbol(s);
         row.onclick = (e) => {
           if ((e.target as HTMLElement).classList.contains('wl-del')) return;
-          this.onSelect(s);
+          if (supported) this.onSelect(s);
         };
         row.querySelector('.wl-del')!.addEventListener('click', () => {
           this.setSymbols(this.symbols.filter((x) => x !== s));
@@ -73,6 +76,15 @@ export class Watchlist {
         });
         this.rows.set(s, row);
         const r = row;
+        if (!supported) {
+          r.classList.add('wl-pending');
+          r.title = 'Sin datos todavía: oro, plata y acciones llegan en la fase 4';
+          r.querySelector('.wl-last')!.textContent = '—';
+          this.unsubs.set(s, () => {});
+          row.classList.toggle('active', s === this.active);
+          this.listEl.appendChild(row);
+          continue;
+        }
         let precision = 2;
         this.hub.provider
           .getSymbolInfo(s)
@@ -99,7 +111,7 @@ export class Watchlist {
     const cls = ch > 0 ? 'up' : ch < 0 ? 'down' : '';
     const lastEl = row.querySelector('.wl-last') as HTMLElement;
     const prev = parseFloat(lastEl.dataset.v || 'NaN');
-    lastEl.textContent = t.last.toFixed(precision);
+    lastEl.textContent = formatPrice(t.last, precision);
     lastEl.dataset.v = String(t.last);
     if (!Number.isNaN(prev) && prev !== t.last) {
       lastEl.classList.remove('flash-up', 'flash-down');
@@ -108,8 +120,8 @@ export class Watchlist {
     }
     const chEl = row.querySelector('.wl-ch') as HTMLElement;
     const pctEl = row.querySelector('.wl-pct') as HTMLElement;
-    chEl.textContent = (ch > 0 ? '+' : '') + ch.toFixed(precision);
-    pctEl.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+    chEl.textContent = (ch > 0 ? '+' : '') + formatPrice(ch, precision);
+    pctEl.textContent = (pct > 0 ? '+' : '') + formatPrice(pct, 2) + '%';
     chEl.className = 'wl-ch ' + cls;
     pctEl.className = 'wl-pct ' + cls;
   }
