@@ -7,6 +7,7 @@ import {
   LineSeries,
   LineStyle,
   LineType,
+  PriceScaleMode,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
@@ -25,6 +26,7 @@ import { tools } from '../ui/tools';
 import type { CrosshairSync } from './crosshairSync';
 import { formatPrice, formatVolumeEs, makeTimeFormatter, tickMarkFormatter } from './format';
 import { PivotsPrimitive } from './pivotsPrimitive';
+import { MeasurePrimitive, type Measure } from './measurePrimitive';
 
 // Un gráfico completo: velas, volumen, medias, medias de otra temporalidad, RSI,
 // pivots, líneas horizontales y leyenda tipo TradingView (arriba a la izquierda).
@@ -59,6 +61,17 @@ function toLine(candles: Candle[], values: Values): LineData<Time>[] {
 const EYE_ON = '<svg viewBox="0 0 18 18" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="1.3" d="M1.5 9s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5z"/><circle cx="9" cy="9" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
 const EYE_OFF = '<svg viewBox="0 0 18 18" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="1.3" d="M1.5 9s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5z"/><path stroke="currentColor" stroke-width="1.3" d="M3 15L15 3"/></svg>';
 
+function formatDuration(secs: number): string {
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (d) return h ? `${d}d ${h}h` : `${d}d`;
+  if (h) return m ? `${h}h ${m}m` : `${h}h`;
+  if (m) return s ? `${m}m ${s}s` : `${m}m`;
+  return `${s}s`;
+}
+
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 }
@@ -79,6 +92,9 @@ export class ChartPanel {
   private rsiSeries: LineApi | null = null;
   private rsiMaSeries: LineApi | null = null;
   private pivots = new PivotsPrimitive();
+  private measure = new MeasurePrimitive();
+  private measuring: 'idle' | 'drawing' | 'done' = 'idle';
+  private logBtn: HTMLButtonElement;
   private priceLines = new Map<string, IPriceLine>();
 
   private symbol = '';
@@ -117,7 +133,15 @@ export class ChartPanel {
     this.legendEl.className = 'legend';
     this.statusEl = document.createElement('div');
     this.statusEl.className = 'panel-status';
-    this.el.append(this.chartEl, this.legendEl, this.statusEl);
+    this.logBtn = document.createElement('button');
+    this.logBtn.className = 'log-btn';
+    this.logBtn.textContent = 'log';
+    this.logBtn.title = 'Escala logarítmica (Alt+L)';
+    this.logBtn.onclick = (e) => {
+      e.stopPropagation();
+      this.toggleLog();
+    };
+    this.el.append(this.chartEl, this.legendEl, this.statusEl, this.logBtn);
     parent.appendChild(this.el);
 
     this.chart = createChart(this.chartEl, {
@@ -126,8 +150,9 @@ export class ChartPanel {
         background: { type: ColorType.Solid, color: THEME.bg },
         textColor: THEME.scaleText,
         fontSize: 12,
-        // Enlace de atribución de TradingView Lightweight Charts (requisito de la licencia).
-        attributionLogo: true,
+        // Sin el logo en cada gráfico: la atribución a TradingView Lightweight Charts
+        // (que pide su licencia) está en el botón "ⓘ" de la barra superior.
+        attributionLogo: false,
         panes: { separatorColor: '#2a2e39', separatorHoverColor: 'rgba(120,140,190,0.25)', enableResize: true },
       },
       grid: { vertLines: { color: THEME.grid }, horzLines: { color: THEME.grid } },
@@ -153,6 +178,12 @@ export class ChartPanel {
     });
     this.pivots.color = THEME.pivots;
     this.candle.attachPrimitive(this.pivots);
+    this.candle.attachPrimitive(this.measure);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') this.clearMeasure();
+    };
+    window.addEventListener('keydown', onKey);
+    this.unsubs.push(() => window.removeEventListener('keydown', onKey));
 
     this.chart.subscribeCrosshairMove((p) => this.onCrosshair(p));
     this.chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
@@ -177,8 +208,20 @@ export class ChartPanel {
     this.unsubs.push(tools.subscribe(() => this.updateCursor()));
 
     this.deps.sync.register(this);
+    this.applyLog();
     this.applyTfOptions();
     this.buildIndicatorSeries();
+  }
+
+  toggleLog() {
+    this.cfg.logScale = !this.cfg.logScale;
+    this.applyLog();
+    this.deps.onConfigChange(structuredClone(this.cfg));
+  }
+
+  private applyLog() {
+    this.chart.priceScale('right').applyOptions({ mode: this.cfg.logScale ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal });
+    this.logBtn.classList.toggle('on', !!this.cfg.logScale);
   }
 
   setActive(active: boolean) {
@@ -191,6 +234,7 @@ export class ChartPanel {
   setConfig(cfg: PanelCfg) {
     const tfChanged = cfg.tf !== this.cfg.tf;
     this.cfg = structuredClone(cfg);
+    this.applyLog();
     if (tfChanged) this.applyTfOptions();
     this.configChanged(true, tfChanged);
   }
@@ -680,7 +724,7 @@ export class ChartPanel {
   }
 
   private updateCursor(e?: { clientX: number; clientY: number }) {
-    if (tools.active === 'hline') {
+    if (tools.active === 'hline' || tools.active === 'measure' || this.measuring === 'drawing') {
       this.chartEl.style.cursor = 'crosshair';
       return;
     }
@@ -708,6 +752,18 @@ export class ChartPanel {
         const { x, y } = this.local(e);
         if (!this.inMainPane(x, y)) return;
         const d = this.deps.drawings;
+        // Regla de medir: con la herramienta activa (clic, clic) o con Mayús + arrastrar.
+        if (this.measuring === 'drawing') {
+          stop(e);
+          this.finishMeasure();
+          return;
+        }
+        if (tools.active === 'measure' || (e.shiftKey && tools.active === 'none')) {
+          stop(e);
+          this.startMeasure(e, e.shiftKey && tools.active === 'none');
+          return;
+        }
+        if (this.measuring === 'done') this.clearMeasure();
         if (tools.active === 'hline') {
           const price = this.candle.coordinateToPrice(y);
           if (price == null) return;
@@ -740,6 +796,75 @@ export class ChartPanel {
         { capture: true, passive: false },
       );
     }
+  }
+
+  // ── Regla de medir ────────────────────────────────────────────────────────
+
+  private pointAt(e: { clientX: number; clientY: number }): { i: number; p: number } | null {
+    const { x, y } = this.local(e);
+    const l = this.chart.timeScale().coordinateToLogical(x);
+    const p = this.candle.coordinateToPrice(y);
+    if (l == null || p == null) return null;
+    return { i: Math.round(l), p };
+  }
+
+  private measureMove: ((ev: PointerEvent) => void) | null = null;
+  private measureUp: (() => void) | null = null;
+
+  private startMeasure(e: PointerEvent, dragMode: boolean) {
+    const a = this.pointAt(e);
+    if (!a) return;
+    this.suppressMouse = true;
+    this.measuring = 'drawing';
+    this.setMeasure({ i1: a.i, p1: a.p, i2: a.i, p2: a.p });
+    this.measureMove = (ev: PointerEvent) => {
+      const b = this.pointAt(ev);
+      const m = this.measure.value;
+      if (b && m) this.setMeasure({ ...m, i2: b.i, p2: b.p });
+    };
+    window.addEventListener('pointermove', this.measureMove, true);
+    if (dragMode) {
+      this.measureUp = () => this.finishMeasure();
+      window.addEventListener('pointerup', this.measureUp, true);
+    }
+  }
+
+  private finishMeasure() {
+    if (this.measureMove) window.removeEventListener('pointermove', this.measureMove, true);
+    if (this.measureUp) window.removeEventListener('pointerup', this.measureUp, true);
+    this.measureMove = this.measureUp = null;
+    this.measuring = 'done';
+    if (tools.active === 'measure') tools.set('none');
+    setTimeout(() => (this.suppressMouse = false), 0);
+    this.updateCursor();
+  }
+
+  private clearMeasure() {
+    if (this.measuring === 'drawing') this.finishMeasure();
+    this.measuring = 'idle';
+    this.measure.set(null);
+  }
+
+  private setMeasure(m: Measure) {
+    const cs = this.candles;
+    const change = m.p2 - m.p1;
+    const pct = m.p1 ? (change / m.p1) * 100 : 0;
+    const mm = this.info.minMove || 0.01;
+    const ticks = Math.round(change / mm);
+    const bars = m.i2 - m.i1;
+    const secs = Math.abs(bars) * TIMEFRAMES[this.cfg.tf].seconds;
+    let vol = 0;
+    const lo = Math.max(0, Math.min(m.i1, m.i2));
+    const hi = Math.min(cs.length - 1, Math.max(m.i1, m.i2));
+    for (let k = lo; k <= hi; k++) vol += cs[k].volume;
+    const sign = change > 0 ? '' : change < 0 ? '' : '';
+    const tickStr = formatPrice(ticks, 0);
+    const lines = [
+      `${sign}${formatPrice(change, this.info.precision)} (${formatPrice(pct, 2)}%) ${tickStr}`,
+      `${bars} barras, ${formatDuration(secs)}`,
+      `Vol. ${formatVolumeEs(vol)}`,
+    ];
+    this.measure.set(m, { lines });
   }
 
   private startDrag(id: string, e: PointerEvent) {

@@ -51,6 +51,8 @@ export interface PanelCfg {
   pivots: boolean;
   /** Leyenda de indicadores desplegada (como el "⌄ 5" de TradingView). */
   legendOpen: boolean;
+  /** Escala de precios logarítmica. */
+  logScale?: boolean;
 }
 
 export interface LayoutCfg {

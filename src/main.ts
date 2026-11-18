@@ -141,7 +141,9 @@ $('#btn-single').onclick = () => {
 };
 $('#btn-hline').onclick = () => tools.toggle('hline');
 $('#btn-cursor').onclick = () => tools.set('none');
+$('#btn-measure').onclick = () => tools.toggle('measure');
 tools.subscribe((t) => {
+  $('#btn-measure').classList.toggle('on', t === 'measure');
   $('#btn-hline').classList.toggle('on', t === 'hline');
   $('#btn-cursor').classList.toggle('on', t === 'none');
 });
@@ -203,7 +205,10 @@ drawings.subscribe(renderEditor);
 window.addEventListener('keydown', (e) => {
   const tag = (e.target as HTMLElement).tagName;
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-  if (e.altKey && (e.key === 'h' || e.key === 'H')) {
+  if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+    e.preventDefault();
+    activePanel?.toggleLog();
+  } else if (e.altKey && (e.key === 'h' || e.key === 'H')) {
     e.preventDefault();
     tools.toggle('hline');
   } else if (e.key === 'Escape') {
