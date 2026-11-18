@@ -208,6 +208,15 @@ window.addEventListener('keydown', (e) => {
   if (e.altKey && (e.key === 'l' || e.key === 'L')) {
     e.preventDefault();
     activePanel?.toggleLog();
+  } else if (e.altKey && (e.key === 'a' || e.key === 'A')) {
+    e.preventDefault();
+    activePanel?.autoFit();
+  } else if (e.altKey && (e.key === '+' || e.key === '=')) {
+    e.preventDefault();
+    activePanel?.zoom(0.8);
+  } else if (e.altKey && e.key === '-') {
+    e.preventDefault();
+    activePanel?.zoom(1.25);
   } else if (e.altKey && (e.key === 'h' || e.key === 'H')) {
     e.preventDefault();
     tools.toggle('hline');

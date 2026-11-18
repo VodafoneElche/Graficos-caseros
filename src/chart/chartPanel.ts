@@ -94,7 +94,9 @@ export class ChartPanel {
   private pivots = new PivotsPrimitive();
   private measure = new MeasurePrimitive();
   private measuring: 'idle' | 'drawing' | 'done' = 'idle';
-  private logBtn: HTMLButtonElement;
+  private logBtn!: HTMLButtonElement;
+  private autoBtn!: HTMLButtonElement;
+  private scaleBtns: HTMLDivElement;
   private priceLines = new Map<string, IPriceLine>();
 
   private symbol = '';
@@ -133,15 +135,30 @@ export class ChartPanel {
     this.legendEl.className = 'legend';
     this.statusEl = document.createElement('div');
     this.statusEl.className = 'panel-status';
-    this.logBtn = document.createElement('button');
-    this.logBtn.className = 'log-btn';
-    this.logBtn.textContent = 'log';
-    this.logBtn.title = 'Escala logarítmica (Alt+L)';
-    this.logBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.toggleLog();
+    // Botonera abajo a la derecha, como en TradingView: lupa −/+, A (auto) y L (log).
+    this.scaleBtns = document.createElement('div');
+    this.scaleBtns.className = 'scale-btns';
+    const mk = (txt: string, title: string, fn: () => void) => {
+      const b = document.createElement('button');
+      b.innerHTML = txt;
+      b.title = title;
+      b.onclick = (e) => {
+        e.stopPropagation();
+        fn();
+      };
+      b.onpointerdown = (e) => e.stopPropagation();
+      this.scaleBtns.appendChild(b);
+      return b;
     };
-    this.el.append(this.chartEl, this.legendEl, this.statusEl, this.logBtn);
+    const lupa = (sign: string) =>
+      `<svg viewBox="0 0 18 18" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7.5" cy="7.5" r="5"/><path d="M11.2 11.2 16 16"/><path d="M5 7.5h5${sign === '+' ? 'M7.5 5v5' : ''}"/></svg>`;
+    mk(lupa('-'), 'Alejar (Alt+−)', () => this.zoom(1.25));
+    mk(lupa('+'), 'Acercar (Alt++)', () => this.zoom(0.8));
+    this.autoBtn = mk('A', 'Encuadre automático del precio (Alt+A)', () => this.autoFit());
+    this.logBtn = mk('L', 'Escala logarítmica (Alt+L)', () => this.toggleLog());
+    this.el.append(this.chartEl, this.legendEl, this.statusEl, this.scaleBtns);
+    this.el.addEventListener('pointerup', () => setTimeout(() => this.refreshAuto(), 0));
+    this.el.addEventListener('dblclick', () => setTimeout(() => this.refreshAuto(), 0));
     parent.appendChild(this.el);
 
     this.chart = createChart(this.chartEl, {
@@ -219,9 +236,29 @@ export class ChartPanel {
     this.deps.onConfigChange(structuredClone(this.cfg));
   }
 
+  /** Zoom horizontal manteniendo la última vela a la vista (factor > 1 aleja). */
+  zoom(factor: number) {
+    const ts = this.chart.timeScale();
+    const r = ts.getVisibleLogicalRange();
+    if (!r) return;
+    const width = Math.max(10, Math.min(5000, (r.to - r.from) * factor));
+    ts.setVisibleLogicalRange({ from: r.to - width, to: r.to });
+  }
+
+  /** Vuelve a encuadrar el precio automáticamente (botón A). */
+  autoFit() {
+    this.chart.priceScale('right').applyOptions({ autoScale: true });
+    this.refreshAuto();
+  }
+
+  private refreshAuto() {
+    this.autoBtn.classList.toggle('on', this.chart.priceScale('right').options().autoScale !== false);
+  }
+
   private applyLog() {
     this.chart.priceScale('right').applyOptions({ mode: this.cfg.logScale ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal });
     this.logBtn.classList.toggle('on', !!this.cfg.logScale);
+    this.refreshAuto();
   }
 
   setActive(active: boolean) {
