@@ -6,6 +6,7 @@ name: Instalador Windows
 on:
   push:
     branches: [main, fase-1-prototipo]
+    paths-ignore: ["**.md", "iniciar.*"]
   workflow_dispatch:
 
 permissions:

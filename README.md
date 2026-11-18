@@ -6,20 +6,24 @@ Aplicación web privada de gráficos de trading, para uso familiar. Sustituye la
 
 ---
 
-## Cómo ponerla en marcha en Windows (paso a paso)
+## Instalar el programa en Windows (recomendado)
 
-Sólo hace falta hacerlo una vez.
+1. Descarga el instalador: <https://github.com/VodafoneElche/Graficos-caseros/releases/download/ultima-version/Graficos-familia-Setup-0.1.0.exe>
+   (o entra en <https://github.com/VodafoneElche/Graficos-caseros/releases> y pulsa el `.exe`).
+2. Haz doble clic en el archivo descargado. Si Windows avisa con *"Windows protegió su PC"*, pulsa *Más información → Ejecutar de todas formas* (el instalador no está firmado, es nuestro).
+3. Sigue el asistente. Crea el acceso **Gráficos familia** en el escritorio y en el menú Inicio.
+4. Ábrelo: sale una ventana propia, maximizada y sin barras de navegador. No hace falta Node.js ni nada más.
 
-1. **Instala Node.js.** Entra en <https://nodejs.org>, pulsa el botón verde **LTS** (versión 22 o superior), descarga el instalador y dale a *Siguiente* hasta terminar con las opciones por defecto.
-2. **Descarga la aplicación.** En la página del repositorio de GitHub, pulsa el botón verde **Code → Download ZIP**.
-3. **Descomprime el ZIP** en una carpeta fija, por ejemplo `C:\Graficos` (botón derecho → *Extraer todo…*).
-4. **Abre la carpeta y haz doble clic en `iniciar.bat`.**
-   - Se abre una ventana negra con el mensaje *"✔ Gráficos en marcha"* y el navegador se abre solo en <http://localhost:3000>.
-   - Si Windows avisa con *"Windows protegió su PC"*, pulsa *Más información → Ejecutar de todas formas* (es nuestro archivo).
-   - Si el cortafuegos pregunta, puedes darle a *Cancelar*: la app sólo escucha en este ordenador.
-5. **Para cerrarla**, cierra la ventana negra. Para volver a usarla, doble clic otra vez en `iniciar.bat`.
+Atajos del programa: **F11** pantalla completa, **F5** recargar, **Ctrl + / Ctrl − / Ctrl 0** tamaño de letra.
+Los datos (líneas, ajustes) se guardan en `%APPDATA%\Graficos familia\datos`.
 
-No hace falta instalar nada más: la aplicación ya va compilada (carpeta `dist`) y el servidor no usa paquetes externos.
+Cada vez que se publica un cambio, GitHub genera un instalador nuevo en ese mismo enlace: basta con descargarlo e instalar encima.
+
+## Alternativa: abrirla en el navegador
+
+1. **Instala Node.js** (versión 22 o superior) desde <https://nodejs.org>.
+2. **Descarga el ZIP** del repositorio (botón verde **Code → Download ZIP**) y descomprímelo en `C:\Graficos`.
+3. **Doble clic en `iniciar.bat`**: se abre el navegador en <http://localhost:3000>. Para cerrarla, cierra la ventana negra.
 
 ### Probar sin conexión a Binance
 
@@ -40,6 +44,10 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 | Línea horizontal | Botón de línea horizontal en la barra de la izquierda (o **Alt+H**) y clic en el gráfico. Aparece en los 6 gráficos del mismo símbolo. |
 | Mover una línea | Arrástrala con el ratón (el cursor cambia a ↕ encima de la línea). |
 | Color, grosor, precio exacto o borrar | Haz clic en la línea: arriba aparece la barra de edición. **Supr** la borra, **Esc** la deselecciona. |
+| Regla de medir | Botón de la regla en la barra de la izquierda: clic en el punto de inicio y clic en el final. También **Mayúsculas + arrastrar**. Muestra variación, %, ticks, barras, tiempo y volumen. **Esc** la quita. |
+| Zoom | Lupas **−** y **+** abajo a la derecha de cada gráfico (o **Alt −** / **Alt +**), además de la rueda del ratón. |
+| Encuadre automático | Botón **A** abajo a la derecha (o **Alt+A**). Se apaga si estiras la escala de precios a mano; púlsalo para volver a encuadrar. |
+| Escala logarítmica | Botón **L** abajo a la derecha (o **Alt+L**). Se guarda por gráfico. |
 | Más historia | Desplaza el gráfico hacia la izquierda: carga velas antiguas automáticamente. |
 
 Las líneas, la watchlist y la configuración de los gráficos se guardan en el servidor (archivo `datos\graficos.db`). **Copia esa carpeta `datos` si quieres hacer una copia de seguridad.**
