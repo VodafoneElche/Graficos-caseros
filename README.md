@@ -35,6 +35,13 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 
 | Qué | Cómo |
 |---|---|
+| Buscar un símbolo | Clic en el nombre del símbolo (arriba a la izquierda) o empieza a escribir sobre el gráfico. Busca en todas las fuentes de datos (de momento Binance). |
+| Configurar una media (EMA/SMA) | Doble clic en su nombre en la leyenda, o el ⚙ que aparece al pasar el ratón. Ventana como la de TradingView: longitud, fuente, compensación, suavizado, intervalo de tiempo (media de otra temporalidad, con "Espere al cierre"), color, grosor, estilo y visibilidad por temporalidades. |
+| Añadir indicadores | Botón **Indicadores** de la barra superior (gráfico seleccionado): EMA, SMA, RSI, volumen, pivots y 2YMA. |
+| Pivots | Doble clic en "Pivots" en la leyenda: tipo, temporalidad, número de pivotes, etiquetas, precios, grosor y qué niveles (P, S1-S5, R1-R5) con su color. |
+| 2YMA | Media de 2 años (730 días) y esa media x 5, con fondos de zona barata/cara. Activada en el gráfico diario. |
+| Línea vertical | Botón de línea vertical (o **Alt+V**) y clic. Se ve en todas las temporalidades. |
+| Extensión de Fibonacci | Botón de Fibonacci y 3 clics: inicio, final y retroceso. Doble clic en ella para cambiar niveles y colores. Se mueve arrastrándola y cada punto por separado. |
 | Cambiar de símbolo | Clic en la lista de seguimiento de la derecha. Cambian los 6 gráficos a la vez. Los símbolos en gris (oro, plata, acciones) tendrán datos en la fase 4. |
 | Añadir un símbolo | Escribe el par (p. ej. `ETHUSDT`) abajo en la lista y pulsa **+**. Para quitarlo, pasa el ratón por encima y pulsa ✕. |
 | Cuadrícula / gráfico grande | Botones **6 gráficos** y **Uno grande** arriba. También el botón ⤢ que aparece en la leyenda al pasar el ratón, o doble clic sobre las fechas de abajo. |
@@ -43,7 +50,7 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 | Configurar medias y medias de otra temporalidad | Botón ⚙ de la leyenda (o clic en el nombre del símbolo de la leyenda). Ahí cambias periodo, tipo (EMA/SMA), color, grosor, y añades medias tipo "EMA 50 de 15m". |
 | Línea horizontal | Botón de línea horizontal en la barra de la izquierda (o **Alt+H**) y clic en el gráfico. Aparece en los 6 gráficos del mismo símbolo. |
 | Mover una línea | Arrástrala con el ratón (el cursor cambia a ↕ encima de la línea). |
-| Color, grosor, precio exacto o borrar | Haz clic en la línea: arriba aparece la barra de edición. **Supr** la borra, **Esc** la deselecciona. |
+| Color, grosor (desde 0,5 px), precio exacto o borrar | Haz clic en la línea: arriba aparece la barra de edición. **Supr** la borra, **Esc** la deselecciona. |
 | Regla de medir | Botón de la regla en la barra de la izquierda: clic en el punto de inicio y clic en el final. También **Mayúsculas + arrastrar**. Muestra variación, %, ticks, barras, tiempo y volumen. **Esc** la quita. |
 | Zoom | Lupas **−** y **+** abajo a la derecha de cada gráfico (o **Alt −** / **Alt +**), además de la rueda del ratón. |
 | Encuadre automático | Botón **A** abajo a la derecha (o **Alt+A**). Se apaga si estiras la escala de precios a mano; púlsalo para volver a encuadrar. |

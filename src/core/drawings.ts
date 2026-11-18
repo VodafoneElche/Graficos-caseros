@@ -1,7 +1,8 @@
 import { api } from '../api';
-import type { HLine } from './types';
+import { fibExtDefaults } from './toolDefaults';
+import type { Drawing, FibExt, HLine, VLine } from './types';
 
-// Dibujos (de momento, líneas horizontales) del símbolo activo.
+// Dibujos del símbolo activo: líneas horizontales y verticales y extensiones de Fibonacci.
 // Una sola lista compartida por los 6 gráficos: si mueves una línea en uno, se mueve en todos.
 // Se guardan en el servidor y se vuelven a leer cada 20 s y al volver a la ventana,
 // para ver los cambios hechos desde otro dispositivo.
@@ -16,10 +17,11 @@ function newId(): string {
 
 export class DrawingsStore {
   symbol = '';
-  items: HLine[] = [];
+  items: Drawing[] = [];
   selectedId: string | null = null;
   dragging = false;
   lastColor = LINE_COLORS[0];
+  lastWidth = 1;
   private listeners = new Set<Listener>();
   private saveTimers = new Map<string, number>();
   private loadSeq = 0;
@@ -63,12 +65,11 @@ export class DrawingsStore {
     }
   }
 
-  get selected(): HLine | undefined {
+  get selected(): Drawing | undefined {
     return this.items.find((d) => d.id === this.selectedId);
   }
 
-  addHLine(price: number): HLine {
-    const d: HLine = { id: newId(), symbol: this.symbol, type: 'hline', price, color: this.lastColor, width: 1, style: 0 };
+  private add(d: Drawing) {
     this.items = [...this.items, d];
     this.selectedId = d.id;
     this.emit();
@@ -76,9 +77,29 @@ export class DrawingsStore {
     return d;
   }
 
-  update(id: string, patch: Partial<HLine>, persistDelay = 400) {
-    this.items = this.items.map((d) => (d.id === id ? { ...d, ...patch } : d));
-    if (patch.color) this.lastColor = patch.color;
+  addHLine(price: number): HLine {
+    return this.add({ id: newId(), symbol: this.symbol, type: 'hline', price, color: this.lastColor, width: this.lastWidth, style: 0 }) as HLine;
+  }
+
+  addVLine(time: number): VLine {
+    return this.add({ id: newId(), symbol: this.symbol, type: 'vline', time, color: this.lastColor, width: this.lastWidth, style: 0 }) as VLine;
+  }
+
+  /** Crea una extensión de Fibonacci (sin guardar hasta que se termine de dibujar). */
+  addFibExt(points: FibExt['points'], persist: boolean): FibExt {
+    const d: FibExt = { id: newId(), symbol: this.symbol, type: 'fibext', points, ...fibExtDefaults() };
+    this.items = [...this.items, d];
+    this.selectedId = d.id;
+    this.emit();
+    if (persist) this.persist(d.id, 0);
+    return d;
+  }
+
+  update(id: string, patch: Partial<Drawing>, persistDelay = 400) {
+    this.items = this.items.map((d) => (d.id === id ? ({ ...d, ...patch } as Drawing) : d));
+    const anyPatch = patch as any;
+    if (anyPatch.color) this.lastColor = anyPatch.color;
+    if (anyPatch.width) this.lastWidth = anyPatch.width;
     this.emit();
     if (persistDelay >= 0) this.persist(id, persistDelay);
   }

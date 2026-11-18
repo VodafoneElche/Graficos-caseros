@@ -1,9 +1,10 @@
-import { tfLabel, USER_TFS } from '../core/timeframes';
-import type { MaType, PanelCfg, TfId } from '../core/types';
+import { tfLabel } from '../core/timeframes';
+import type { MaCfg, PanelCfg } from '../core/types';
 import { defaultMas, uid } from './defaults';
+import { openMaSettings, openPivotSettings, openTwoYmaSettings } from './indicatorSettings';
 
-// Ventana de ajustes de un gráfico: medias (tipo, periodo, color, grosor) y
-// medias de otra temporalidad (MTF).
+// Ventana "Indicadores" de un gráfico: qué indicadores tiene y botón ⚙ para
+// configurar cada uno con su ventana tipo TradingView.
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, any> = {}, ...children: (Node | string)[]) {
   const e = document.createElement(tag);
@@ -16,46 +17,23 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   return e;
 }
 
-function typeSelect(value: MaType, onChange: (v: MaType) => void) {
-  const s = el('select', {}, el('option', { value: 'EMA' }, 'EMA'), el('option', { value: 'SMA' }, 'SMA'));
-  s.value = value;
-  s.onchange = () => onChange(s.value as MaType);
-  return s;
-}
-
-function numInput(value: number, onChange: (v: number) => void, min = 1, max = 1000) {
-  const i = el('input', { type: 'number', min: String(min), max: String(max), value: String(value), class: 'num' });
-  i.onchange = () => {
-    const v = Math.round(+i.value);
-    if (v >= min && v <= max) onChange(v);
-  };
-  return i;
-}
-
-function colorInput(value: string, onChange: (v: string) => void) {
-  const i = el('input', { type: 'color', value });
-  i.oninput = () => onChange(i.value);
-  return i;
-}
-
-function widthSelect(value: number, onChange: (v: number) => void) {
-  const s = el('select', { title: 'Grosor' });
-  for (const w of [1, 2, 3, 4]) s.append(el('option', { value: String(w) }, `${w}px`));
-  s.value = String(value);
-  s.onchange = () => onChange(+s.value);
-  return s;
-}
-
 function checkbox(value: boolean, onChange: (v: boolean) => void) {
   const c = el('input', { type: 'checkbox', checked: value });
   c.onchange = () => onChange(c.checked);
   return c;
 }
 
+function maName(m: MaCfg, chartTf: string) {
+  const tf = m.tf && m.tf !== chartTf ? ` · ${tfLabel(m.tf)}` : '';
+  return `${m.type}${tf} ${m.period} ${m.source || 'close'}`;
+}
+
 export function openPanelSettings(initial: PanelCfg, onApply: (cfg: PanelCfg) => void) {
   const cfg: PanelCfg = structuredClone(initial);
   const dlg = el('dialog', { class: 'settings' });
   document.body.appendChild(dlg);
+
+  const gear = (fn: () => void) => el('button', { class: 'link', title: 'Configuración', onclick: fn }, '⚙');
 
   const render = () => {
     dlg.innerHTML = '';
@@ -64,55 +42,40 @@ export function openPanelSettings(initial: PanelCfg, onApply: (cfg: PanelCfg) =>
         'div',
         { class: 'row' },
         checkbox(m.visible, (v) => (m.visible = v)),
-        typeSelect(m.type, (v) => (m.type = v)),
-        numInput(m.period, (v) => (m.period = v)),
-        colorInput(m.color, (v) => (m.color = v)),
-        widthSelect(m.width, (v) => (m.width = v)),
+        el('span', { class: 'swatch-dot', style: `background:${m.color}` }),
+        el('span', { class: 'grow' }, maName(m, cfg.tf)),
+        gear(() =>
+          openMaSettings(m, cfg.tf, (nm) => {
+            cfg.mas[idx] = nm;
+            render();
+          }),
+        ),
         el('button', { class: 'link danger', title: 'Quitar', onclick: () => (cfg.mas.splice(idx, 1), render()) }, '✕'),
       ),
     );
-    const mtfRows = cfg.mtf.map((m, idx) => {
-      const tfSel = el('select', { title: 'Temporalidad de la media' });
-      for (const t of USER_TFS) tfSel.append(el('option', { value: t }, tfLabel(t)));
-      tfSel.value = m.tf;
-      tfSel.onchange = () => (m.tf = tfSel.value as TfId);
-      return el(
-        'div',
-        { class: 'row' },
-        checkbox(m.visible, (v) => (m.visible = v)),
-        typeSelect(m.type, (v) => (m.type = v)),
-        numInput(m.period, (v) => (m.period = v)),
-        el('span', { class: 'dim' }, 'de'),
-        tfSel,
-        colorInput(m.color, (v) => (m.color = v)),
-        widthSelect(m.width, (v) => (m.width = v)),
-        el('button', { class: 'link danger', title: 'Quitar', onclick: () => (cfg.mtf.splice(idx, 1), render()) }, '✕'),
-      );
-    });
 
     const close = () => {
       dlg.close();
       dlg.remove();
     };
+    const addMa = (type: 'EMA' | 'SMA') => {
+      const m: MaCfg = { id: uid('a'), type, period: type === 'EMA' ? 50 : 200, color: '#2962ff', width: 1, visible: true, waitClose: true };
+      openMaSettings(m, cfg.tf, (nm) => {
+        cfg.mas.push(nm);
+        render();
+      });
+    };
 
     dlg.append(
       el('h3', {}, `Indicadores del gráfico ${tfLabel(cfg.tf)}`),
       el('h4', {}, 'Medias móviles'),
+      el('p', { class: 'dim' }, 'Con ⚙ se cambia longitud, fuente, compensación, suavizado, intervalo de tiempo (media de otra temporalidad), color y visibilidad. También con doble clic en su nombre en la leyenda del gráfico.'),
       ...maRows,
       el(
         'div',
         { class: 'row' },
-        el(
-          'button',
-          {
-            class: 'link',
-            onclick: () => {
-              cfg.mas.push({ id: uid('a'), type: 'EMA', period: 100, color: '#90caf9', width: 1, visible: true });
-              render();
-            },
-          },
-          '+ Añadir media',
-        ),
+        el('button', { class: 'link', onclick: () => addMa('EMA') }, '+ Añadir EMA'),
+        el('button', { class: 'link', onclick: () => addMa('SMA') }, '+ Añadir SMA'),
         el(
           'button',
           {
@@ -125,28 +88,21 @@ export function openPanelSettings(initial: PanelCfg, onApply: (cfg: PanelCfg) =>
           'Restaurar EMA 18/20/50 y SMA 200',
         ),
       ),
-      el('h4', {}, 'Medias de otra temporalidad (MTF)'),
-      el('p', { class: 'dim' }, 'Ejemplo: "EMA 50 de 15m" sobre el gráfico de 5m. Se dibujan escalonadas.'),
-      ...mtfRows,
-      el(
-        'div',
-        { class: 'row' },
-        el(
-          'button',
-          {
-            class: 'link',
-            onclick: () => {
-              cfg.mtf.push({ id: uid('m'), type: 'EMA', period: 50, tf: '1h', color: '#ffeb3b', width: 2, visible: true });
-              render();
-            },
-          },
-          '+ Añadir media MTF',
-        ),
-      ),
       el('h4', {}, 'Otros'),
       el('label', { class: 'row' }, checkbox(cfg.rsi, (v) => (cfg.rsi = v)), 'RSI 14 con su media de 14'),
       el('label', { class: 'row' }, checkbox(cfg.volume, (v) => (cfg.volume = v)), 'Volumen'),
-      el('label', { class: 'row' }, checkbox(cfg.pivots, (v) => (cfg.pivots = v)), 'Pivots Traditional (automáticos)'),
+      el(
+        'div',
+        { class: 'row' },
+        el('label', {}, checkbox(cfg.pivots, (v) => (cfg.pivots = v)), ` Pivots ${cfg.pivotCfg?.type ?? ''}`),
+        gear(() => openPivotSettings(cfg.pivotCfg!, (pc) => ((cfg.pivotCfg = pc), (cfg.pivots = true), render()))),
+      ),
+      el(
+        'div',
+        { class: 'row' },
+        el('label', {}, checkbox(!!cfg.twoYma?.on, (v) => (cfg.twoYma!.on = v)), ' 2YMA (media de 2 años y x 5)'),
+        gear(() => openTwoYmaSettings(cfg.twoYma!, (t) => ((cfg.twoYma = t), render()))),
+      ),
       el(
         'div',
         { class: 'actions' },

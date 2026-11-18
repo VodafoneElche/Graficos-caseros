@@ -1,3 +1,5 @@
+import type { FibExt } from './types';
+
 // Configuración de las herramientas de dibujo de la FASE 3, copiada de los menús
 // de TradingView de Jose. Se deja aquí ya preparada para usarla al construirlas.
 
@@ -40,3 +42,42 @@ export const POSITION_DEFAULTS = {
   compactStats: true,
   alwaysShowStats: false,
 };
+
+/**
+ * Extensión de Fibonacci en función de la tendencia, como la tiene Jose en TradingView:
+ * activados 0,618 (gris), 1 (cian), 1,272 (azul) y 1,618 (verde azulado); línea de
+ * tendencia gris discontinua; sin ampliar.
+ */
+export function fibExtDefaults(): Omit<FibExt, 'id' | 'symbol' | 'type' | 'points'> {
+  const lv = (value: number, color: string, on = false) => ({ value, color, on });
+  return {
+    trendLine: true,
+    trendColor: '#787b86',
+    trendStyle: 2,
+    levelsWidth: 1,
+    levelsStyle: 0,
+    extend: 'none',
+    showLabels: true,
+    showPrices: true,
+    background: false,
+    levels: [
+      lv(0, '#787b86'),
+      lv(0.236, '#f23645'),
+      lv(0.382, '#ff9800'),
+      lv(0.5, '#4caf50'),
+      lv(0.618, '#787b86', true),
+      lv(0.786, '#00bcd4'),
+      lv(1, '#00bcd4', true),
+      lv(1.272, '#1848cc', true),
+      lv(1.414, '#f23645'),
+      lv(1.618, '#42bda8', true),
+      lv(2, '#089981'),
+      lv(2.272, '#ff9800'),
+      lv(2.414, '#4caf50'),
+      lv(2.618, '#f23645'),
+      lv(3, '#00bcd4'),
+      lv(3.618, '#9c27b0'),
+      lv(4.236, '#e91e63'),
+    ],
+  };
+}

@@ -1,4 +1,4 @@
-import type { HLine } from './core/types';
+import type { Drawing } from './core/types';
 
 // Cliente del servidor propio (server/server.mjs): ajustes y dibujos guardados en SQLite.
 
@@ -43,9 +43,9 @@ export const api = {
     return req('PUT', `/api/settings/${encodeURIComponent(key)}`, { value });
   },
   listDrawings(symbol: string) {
-    return req<HLine[]>('GET', `/api/drawings?symbol=${encodeURIComponent(symbol)}`);
+    return req<Drawing[]>('GET', `/api/drawings?symbol=${encodeURIComponent(symbol)}`);
   },
-  saveDrawing(d: HLine) {
+  saveDrawing(d: Drawing) {
     return req('PUT', `/api/drawings/${encodeURIComponent(d.id)}`, d);
   },
   deleteDrawing(id: string) {

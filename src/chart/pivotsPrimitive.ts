@@ -10,6 +10,7 @@ import type {
 } from 'lightweight-charts';
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { PivotPeriod } from '../indicators/indicators';
+import type { PivotCfg, PivotLevelName } from '../core/types';
 
 // Dibuja los pivots como tramos horizontales, uno por periodo (día/semana/mes),
 // con su etiqueta (P, R1, S1...) a la izquierda, como en TradingView.
@@ -21,6 +22,7 @@ export class PivotsPrimitive implements ISeriesPrimitive<Time> {
   private periods: PivotPeriod[] = [];
   private visible = true;
   color = '#f5a623';
+  cfg: PivotCfg | null = null;
   formatPrice: (p: number) => string = (p) => p.toFixed(2);
   private view: IPrimitivePaneView;
 
@@ -63,12 +65,13 @@ export class PivotsPrimitive implements ISeriesPrimitive<Time> {
     const series = this.series;
     target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio: hr, verticalPixelRatio: vr, bitmapSize }) => {
       ctx.save();
-      ctx.strokeStyle = this.color;
-      ctx.fillStyle = this.color;
-      ctx.lineWidth = Math.max(1, Math.round(hr));
-      ctx.font = `${Math.round(10 * vr)}px -apple-system, Segoe UI, Roboto, sans-serif`;
+      const cfg = this.cfg;
+      ctx.lineWidth = Math.max(0.5, cfg?.width ?? 1) * hr;
+      ctx.font = `${Math.round(11 * vr)}px -apple-system, Segoe UI, Roboto, sans-serif`;
       ctx.textBaseline = 'bottom';
       const half = (ts.options().barSpacing || 6) / 2;
+      const showText = cfg ? cfg.showLabels || cfg.showPrices : true;
+      const odd = Math.round(ctx.lineWidth) % 2 === 1 && ctx.lineWidth >= 1;
       for (const per of this.periods) {
         // logicalToCoordinate sólo admite índices enteros: sumamos media vela a mano.
         const ca = ts.logicalToCoordinate(per.i1 as any);
@@ -77,22 +80,29 @@ export class PivotsPrimitive implements ISeriesPrimitive<Time> {
         const x1 = Math.round((ca - half) * hr);
         const x2 = Math.round((cb + half) * hr);
         if (x2 < 0 || x1 > bitmapSize.width) continue;
-        const showLabel = x2 - x1 > 90 * hr;
+        const roomForText = x2 - x1 > 70 * hr;
         for (const lv of per.levels) {
+          const st = cfg?.levels[lv.name as PivotLevelName];
+          if (cfg && (!st || !st.on)) continue;
+          const color = st?.color ?? this.color;
           const y = series.priceToCoordinate(lv.price);
           if (y == null) continue;
-          const yy = Math.round(y * vr) + 0.5;
+          const yy = Math.round(y * vr) + (odd ? 0.5 : 0);
           if (yy < -10 || yy > bitmapSize.height + 10) continue;
-          ctx.globalAlpha = lv.name === 'P' ? 1 : 0.8;
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
           ctx.beginPath();
           ctx.moveTo(x1, yy);
           ctx.lineTo(x2, yy);
           ctx.stroke();
-          if (showLabel) {
-            ctx.globalAlpha = 0.9;
-            const label = `${lv.name} (${this.formatPrice(lv.price)})`;
-            // Etiqueta a la derecha del tramo.
-            ctx.fillText(label, Math.max(x1 + 3 * hr, x2 - ctx.measureText(label).width - 3 * hr), yy - 2 * vr);
+          if (showText && roomForText) {
+            const parts: string[] = [];
+            if (!cfg || cfg.showLabels) parts.push(lv.name);
+            if (!cfg || cfg.showPrices) parts.push(cfg && !cfg.showLabels ? this.formatPrice(lv.price) : `(${this.formatPrice(lv.price)})`);
+            const label = parts.join(' ');
+            const w = ctx.measureText(label).width;
+            const right = cfg?.labelsPos === 'right';
+            ctx.fillText(label, right ? Math.max(x1 + 3 * hr, x2 - w - 3 * hr) : x1 + 3 * hr, yy - 2 * vr);
           }
         }
       }

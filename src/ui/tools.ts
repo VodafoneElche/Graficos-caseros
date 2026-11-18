@@ -1,6 +1,6 @@
 // Herramienta de dibujo activa (de momento sólo "línea horizontal").
 
-export type Tool = 'none' | 'hline' | 'measure';
+export type Tool = 'none' | 'hline' | 'vline' | 'fibext' | 'measure';
 
 class ToolState {
   active: Tool = 'none';

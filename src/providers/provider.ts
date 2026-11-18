@@ -22,6 +22,16 @@ export interface SymbolInfo {
   minMove: number;
 }
 
+/** Resultado del buscador de símbolos. */
+export interface SearchResult {
+  symbol: string;
+  description: string;
+  /** Categoría para las pestañas del buscador. */
+  kind: 'crypto' | 'stock' | 'forex' | 'index' | 'commodity';
+  /** Nombre de la fuente de datos (Binance, OANDA...). */
+  source: string;
+}
+
 export interface DayTicker {
   symbol: string;
   last: number;
@@ -41,6 +51,9 @@ export interface DataProvider {
 
   /** ¿Este proveedor da datos de este símbolo? (Los que no, se ven en gris en la watchlist.) */
   supportsSymbol(symbol: string): boolean;
+
+  /** Busca símbolos que contengan el texto (vacío = los más habituales). */
+  searchSymbols(query: string): Promise<SearchResult[]>;
 
   /** Comprueba que el símbolo existe y devuelve sus decimales. */
   getSymbolInfo(symbol: string): Promise<SymbolInfo>;
@@ -70,4 +83,19 @@ export function precisionFromTick(tick: string | number): number {
   const trimmed = s.replace(/0+$/, '');
   const dot = trimmed.indexOf('.');
   return dot < 0 ? 0 : trimmed.length - dot - 1;
+}
+
+/** Ordena y filtra resultados: primero los que empiezan por el texto, luego los que lo contienen. */
+export function rankResults(all: SearchResult[], query: string, limit = 150): SearchResult[] {
+  const q = query.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!q) return all.slice(0, limit);
+  const starts: SearchResult[] = [];
+  const contains: SearchResult[] = [];
+  for (const r of all) {
+    if (r.symbol.startsWith(q)) starts.push(r);
+    else if (r.symbol.includes(q) || r.description.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(q)) contains.push(r);
+  }
+  // Coincidencia exacta primero; el resto, en el orden de la fuente (pares en USDT antes).
+  starts.sort((a, b) => (b.symbol === q ? 1 : 0) - (a.symbol === q ? 1 : 0));
+  return [...starts, ...contains].slice(0, limit);
 }

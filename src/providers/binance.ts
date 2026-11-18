@@ -1,5 +1,5 @@
 import type { Candle, TfId, Unsubscribe } from '../core/types';
-import { type ConnectionStatus, type DataProvider, type DayTicker, type SymbolInfo, precisionFromTick } from './provider';
+import { type ConnectionStatus, type DataProvider, type DayTicker, type SearchResult, type SymbolInfo, precisionFromTick, rankResults } from './provider';
 
 // Proveedor Binance (spot), sin clave de API.
 //  - Histórico: REST /api/v3/klines, pedido a través de nuestro servidor (/proxy/binance/...).
@@ -183,6 +183,32 @@ export class BinanceProvider implements DataProvider {
       await new Promise((res) => setTimeout(res, 500 * (i + 1)));
     }
     throw lastErr;
+  }
+
+  private allSymbols: Promise<SearchResult[]> | null = null;
+
+  /** Lista de todos los pares de contado que se negocian ahora en Binance (se pide una vez). */
+  private loadAllSymbols(): Promise<SearchResult[]> {
+    if (!this.allSymbols) {
+      const map = (j: any): SearchResult[] => {
+        // Primero los pares en USDT (los habituales), luego el resto.
+        const list: SearchResult[] = (j.symbols || [])
+          .filter((s: any) => s.status === 'TRADING')
+          .map((s: any) => ({ symbol: s.symbol, description: `${s.baseAsset} / ${s.quoteAsset}`, kind: 'crypto', source: 'Binance', quote: s.quoteAsset }));
+        const rank = (r: any) => (r.quote === 'USDT' ? 0 : r.quote === 'USDC' ? 1 : r.quote === 'BTC' ? 2 : 3);
+        list.sort((a: any, b: any) => rank(a) - rank(b) || a.symbol.localeCompare(b.symbol));
+        return list;
+      };
+      this.allSymbols = this.get('/api/v3/exchangeInfo', { symbolStatus: 'TRADING', showPermissionSets: 'false' })
+        .catch(() => this.get('/api/v3/exchangeInfo', {}))
+        .then(map);
+      this.allSymbols.catch(() => (this.allSymbols = null));
+    }
+    return this.allSymbols;
+  }
+
+  async searchSymbols(query: string): Promise<SearchResult[]> {
+    return rankResults(await this.loadAllSymbols(), query);
   }
 
   supportsSymbol(symbol: string): boolean {

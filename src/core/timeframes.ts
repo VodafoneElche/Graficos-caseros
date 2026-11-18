@@ -167,3 +167,14 @@ export function upsertCandle(arr: Candle[], c: Candle): 'replace' | 'append' | '
   arr.splice(idx + 1, 0, c);
   return 'insert';
 }
+
+/** Grupo de una temporalidad (para la pestaña "Visibilidad" de los indicadores). */
+export function tfGroup(tf: TfId): import('./types').TfGroup {
+  const s = TIMEFRAMES[tf].seconds;
+  if (s < 60) return 'sec';
+  if (s < 3600) return 'min';
+  if (s < 86400) return 'hour';
+  if (s < 7 * 86400) return 'day';
+  if (s < 28 * 86400) return 'week';
+  return 'month';
+}

@@ -1,6 +1,6 @@
 import { TIMEFRAMES, bucketStart, nextBucketStart } from '../core/timeframes';
 import type { Candle, TfId, Unsubscribe } from '../core/types';
-import type { ConnectionStatus, DataProvider, DayTicker, SymbolInfo } from './provider';
+import { rankResults, type ConnectionStatus, type DataProvider, type DayTicker, type SearchResult, type SymbolInfo } from './provider';
 
 // Proveedor de DEMOSTRACIÓN: genera precios inventados (deterministas) sin conexión a internet.
 // Se activa abriendo la app con ?demo=1. Sirve para probar la interfaz y como ejemplo
@@ -58,6 +58,13 @@ export class MockProvider implements DataProvider {
   readonly label = 'Demo (datos inventados)';
   readonly nativeTimeframes = NATIVE;
   readonly maxBarsPerRequest = 1000;
+
+  async searchSymbols(query: string): Promise<SearchResult[]> {
+    const bases = ['BTC', 'ETH', 'SOL', 'BNB', 'LINK', 'THETA', 'SAND', 'BCH', 'XRP', 'ADA', 'DOGE', 'AVAX', 'DOT', 'LTC', 'TRX', 'ATOM'];
+    const all: SearchResult[] = [];
+    for (const q of ['USDT', 'USDC', 'BTC']) for (const b of bases) if (b !== 'BTC' || q !== 'BTC') all.push({ symbol: b + q, description: `${b} / ${q} (demo)`, kind: 'crypto', source: 'Demo' });
+    return rankResults(all, query);
+  }
 
   supportsSymbol(symbol: string): boolean {
     return /USDT$/.test(symbol);

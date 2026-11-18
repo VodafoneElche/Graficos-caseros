@@ -4,7 +4,7 @@ import { ChartPanel } from './chart/chartPanel';
 import { CrosshairSync } from './chart/crosshairSync';
 import { DrawingsStore, LINE_COLORS } from './core/drawings';
 import { DataHub } from './core/store';
-import type { HLine, LayoutCfg, PanelCfg } from './core/types';
+import type { LayoutCfg, PanelCfg } from './core/types';
 import { createProvider } from './providers';
 import type { SymbolInfo } from './providers/provider';
 import { DEFAULT_WATCHLIST, normalizeLayout } from './ui/defaults';
@@ -12,6 +12,7 @@ import { tfLabel, USER_TFS } from './core/timeframes';
 import { openPanelSettings } from './ui/panelSettings';
 import { tools } from './ui/tools';
 import { Watchlist } from './ui/watchlist';
+import { openSymbolSearch } from './ui/symbolSearch';
 
 // Punto de entrada: monta la barra superior, la watchlist y los gráficos.
 
@@ -65,17 +66,21 @@ function buildPanels() {
         buildPanels();
         renderModeButtons();
       },
-      onOpenSettings: (p) =>
-        openPanelSettings(p.cfg, (c) => {
-          p.setConfig(c);
-          renderTfButtons();
-        }),
+      onOpenSettings: (p) => openIndicators(p),
     });
     if (symbolInfo) panel.setSymbol(layout.symbol, symbolInfo);
     panels.push(panel);
   });
   const keep = layout.mode === 'grid' ? Math.min(activeIdx, panels.length - 1) : 0;
   setActivePanel(panels[keep]);
+}
+
+function openIndicators(p: ChartPanel | null) {
+  if (!p) return;
+  openPanelSettings(p.cfg, (c) => {
+    p.setConfig(c);
+    renderTfButtons();
+  });
 }
 
 // ── Gráfico activo y botones de temporalidad ───────────────────────────────
@@ -142,8 +147,17 @@ $('#btn-single').onclick = () => {
 $('#btn-hline').onclick = () => tools.toggle('hline');
 $('#btn-cursor').onclick = () => tools.set('none');
 $('#btn-measure').onclick = () => tools.toggle('measure');
+$('#btn-vline').onclick = () => tools.toggle('vline');
+$('#btn-fibext').onclick = () => tools.toggle('fibext');
+$('#btn-indicators').onclick = () => openIndicators(activePanel);
+$('#symbox').onclick = () => openSearch('');
+function openSearch(initial: string) {
+  openSymbolSearch([provider], initial, (s) => setSymbol(s));
+}
 tools.subscribe((t) => {
   $('#btn-measure').classList.toggle('on', t === 'measure');
+  $('#btn-vline').classList.toggle('on', t === 'vline');
+  $('#btn-fibext').classList.toggle('on', t === 'fibext');
   $('#btn-hline').classList.toggle('on', t === 'hline');
   $('#btn-cursor').classList.toggle('on', t === 'none');
 });
@@ -162,14 +176,19 @@ onServerStatus((ok) => {
 // ── Editor de la línea seleccionada ────────────────────────────────────────
 const editor = $('#line-editor');
 function renderEditor() {
-  const d: HLine | undefined = drawings.selected;
+  const d = drawings.selected;
   if (!d) {
     editor.style.display = 'none';
     return;
   }
   editor.style.display = '';
+  const isLine = d.type !== 'fibext';
+  for (const sel of ['.le-swatches', '.le-color', '.le-width', '.le-style']) (editor.querySelector(sel) as HTMLElement).style.display = isLine ? '' : 'none';
+  (editor.querySelector('.le-cfg') as HTMLElement).style.display = isLine ? 'none' : '';
   const priceInput = editor.querySelector('input.le-price') as HTMLInputElement;
-  if (document.activeElement !== priceInput) priceInput.value = String(d.price);
+  priceInput.style.display = d.type === 'hline' ? '' : 'none';
+  if (d.type === 'hline' && document.activeElement !== priceInput) priceInput.value = String(d.price);
+  if (d.type === 'fibext') return;
   editor.querySelectorAll<HTMLButtonElement>('.swatch').forEach((b) => b.classList.toggle('on', b.dataset.c === d.color));
   (editor.querySelector('.le-width') as HTMLSelectElement).value = String(d.width);
   (editor.querySelector('.le-style') as HTMLSelectElement).value = String(d.style);
@@ -196,6 +215,7 @@ function renderEditor() {
     const v = parseFloat((e.target as HTMLInputElement).value.replace(',', '.'));
     if (drawings.selectedId && Number.isFinite(v)) drawings.update(drawings.selectedId, { price: v });
   };
+  (editor.querySelector('.le-cfg') as HTMLButtonElement).onclick = () => drawings.selectedId && activePanel?.openFib(drawings.selectedId);
   (editor.querySelector('.le-del') as HTMLButtonElement).onclick = () => drawings.selectedId && drawings.remove(drawings.selectedId);
   (editor.querySelector('.le-close') as HTMLButtonElement).onclick = () => drawings.select(null);
 })();
@@ -220,6 +240,13 @@ window.addEventListener('keydown', (e) => {
   } else if (e.altKey && (e.key === 'h' || e.key === 'H')) {
     e.preventDefault();
     tools.toggle('hline');
+  } else if (e.altKey && (e.key === 'v' || e.key === 'V')) {
+    e.preventDefault();
+    tools.toggle('vline');
+  } else if (!e.altKey && !e.ctrlKey && !e.metaKey && /^[a-zA-Z0-9]$/.test(e.key) && !document.querySelector('dialog[open]')) {
+    // Como en TradingView: empezar a escribir abre el buscador de símbolos.
+    e.preventDefault();
+    openSearch(e.key.toUpperCase());
   } else if (e.key === 'Escape') {
     tools.set('none');
     drawings.select(null);
