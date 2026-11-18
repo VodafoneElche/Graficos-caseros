@@ -45,7 +45,9 @@ function buildPanels() {
   panels.forEach((p) => p.dispose());
   panels = [];
   chartsEl.className = layout.mode === 'grid' ? 'grid6' : 'single';
-  const cfgs = layout.mode === 'grid' ? layout.grid : [layout.single];
+  // En grande se ve uno de los 6 gráficos (el mismo, con su configuración), como al maximizar en TradingView.
+  const singleIdx = layout.singleIdx ?? 0;
+  const cfgs = layout.mode === 'grid' ? layout.grid : [layout.grid[singleIdx]];
   cfgs.forEach((cfg, idx) => {
     const panel: ChartPanel = new ChartPanel(chartsEl, cfg, {
       hub,
@@ -54,12 +56,12 @@ function buildPanels() {
       onActivate: (p) => setActivePanel(p),
       onConfigChange: (c: PanelCfg) => {
         if (layout.mode === 'grid') layout.grid[idx] = c;
-        else layout.single = c;
+        else layout.grid[singleIdx] = c;
         saveLayout();
       },
       onMaximize: () => {
         if (layout.mode === 'grid') {
-          layout.single = structuredClone(panel.cfg);
+          layout.singleIdx = idx;
           layout.mode = 'single';
         } else layout.mode = 'grid';
         saveLayout();
@@ -71,6 +73,7 @@ function buildPanels() {
     if (symbolInfo) panel.setSymbol(layout.symbol, symbolInfo);
     panels.push(panel);
   });
+  if (layout.mode === 'single') activeIdx = singleIdx;
   const keep = layout.mode === 'grid' ? Math.min(activeIdx, panels.length - 1) : 0;
   setActivePanel(panels[keep]);
 }
@@ -139,6 +142,7 @@ $('#btn-grid').onclick = () => {
 };
 $('#btn-single').onclick = () => {
   if (layout.mode === 'single') return;
+  layout.singleIdx = activeIdx; // el gráfico seleccionado (borde azul)
   layout.mode = 'single';
   saveLayout();
   buildPanels();
@@ -247,6 +251,16 @@ window.addEventListener('keydown', (e) => {
     // Como en TradingView: empezar a escribir abre el buscador de símbolos.
     e.preventDefault();
     openSearch(e.key.toUpperCase());
+  } else if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !document.querySelector('dialog[open]')) {
+    // Tab / Mayús+Tab: siguiente / anterior gráfico (en grande cambia de gráfico; en la cuadrícula, cambia el seleccionado).
+    e.preventDefault();
+    const n = layout.grid.length;
+    const step = e.shiftKey ? -1 : 1;
+    if (layout.mode === 'single') {
+      layout.singleIdx = ((layout.singleIdx ?? 0) + step + n) % n;
+      saveLayout();
+      buildPanels();
+    } else setActivePanel(panels[(activeIdx + step + n) % n]);
   } else if (e.key === 'Escape') {
     tools.set('none');
     drawings.select(null);

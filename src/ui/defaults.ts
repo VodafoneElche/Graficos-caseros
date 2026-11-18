@@ -138,5 +138,6 @@ export function normalizeLayout(l: Partial<LayoutCfg> | null): LayoutCfg {
     mode: l.mode === 'single' ? 'single' : 'grid',
     grid: d.grid.map((g, i) => fixPanel(l.grid?.[i], g)),
     single: fixPanel(l.single, d.single),
+    singleIdx: Math.max(0, Math.min(d.grid.length - 1, l.singleIdx ?? 0)),
   };
 }

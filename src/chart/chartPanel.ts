@@ -118,6 +118,7 @@ export class ChartPanel {
   private logBtn!: HTMLButtonElement;
   private autoBtn!: HTMLButtonElement;
   private scaleBtns: HTMLDivElement;
+  private maxBtn: HTMLButtonElement;
   private drawPrim: DrawingsPrimitive;
   /** Extensión de Fibonacci que se está dibujando (clic, clic, clic). */
   private fibDraft: { id: string; step: number } | null = null;
@@ -180,7 +181,17 @@ export class ChartPanel {
     mk(lupa('+'), 'Acercar (Alt++)', () => this.zoom(0.8));
     this.autoBtn = mk('A', 'Encuadre automático del precio (Alt+A)', () => this.autoFit());
     this.logBtn = mk('L', 'Escala logarítmica (Alt+L)', () => this.toggleLog());
-    this.el.append(this.chartEl, this.legendEl, this.statusEl, this.scaleBtns);
+    this.maxBtn = document.createElement('button');
+    this.maxBtn.className = 'max-btn';
+    this.maxBtn.title = 'Ver en grande / volver a los 6 gráficos (Tab y Mayús+Tab cambian de gráfico)';
+    this.maxBtn.innerHTML = '<svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4"/></svg>';
+    this.maxBtn.onpointerdown = (e) => e.stopPropagation();
+    this.maxBtn.onclick = (e) => {
+      e.stopPropagation();
+      this.deps.onActivate(this);
+      this.deps.onMaximize();
+    };
+    this.el.append(this.chartEl, this.legendEl, this.statusEl, this.scaleBtns, this.maxBtn);
     this.el.addEventListener('pointerup', () => setTimeout(() => this.refreshAuto(), 0));
     this.el.addEventListener('dblclick', () => setTimeout(() => this.refreshAuto(), 0));
     parent.appendChild(this.el);
@@ -762,6 +773,8 @@ export class ChartPanel {
     if (idx !== undefined) this.legendIdx = idx;
     // No rehacer la leyenda mientras se pulsa un botón suyo (se perdería el clic).
     if (this.legendPressed) return;
+    const psw = this.chart.priceScale('right').width();
+    if (psw) this.maxBtn.style.right = `${psw + 6}px`;
     const cs = this.candles;
     const c = cs.length ? cs[this.legendIdx == null || this.legendIdx < 0 || this.legendIdx >= cs.length ? cs.length - 1 : this.legendIdx] : null;
     const i = c ? cs.indexOf(c) : -1;

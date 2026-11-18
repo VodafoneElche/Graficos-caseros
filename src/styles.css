@@ -513,6 +513,30 @@ body.hide-sidebar #watchlist {
 .lg-val {
   font-weight: 400;
 }
+.max-btn {
+  position: absolute;
+  top: 6px;
+  right: 86px;
+  z-index: 4;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30, 30, 30, 0.75);
+  border: 1px solid #434651;
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0.55;
+}
+.max-btn:hover,
+.panel:hover .max-btn {
+  opacity: 1;
+}
+.max-btn:hover {
+  background: var(--ui3);
+}
 .scale-btns {
   position: absolute;
   right: 4px;

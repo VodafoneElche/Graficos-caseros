@@ -117,6 +117,8 @@ export interface LayoutCfg {
   mode: 'grid' | 'single';
   grid: PanelCfg[];
   single: PanelCfg;
+  /** Qué gráfico de la cuadrícula se ve en grande (0-5). */
+  singleIdx?: number;
 }
 
 /** Estilo de línea: 0 sólida, 1 punteada, 2 discontinua. */
