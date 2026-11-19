@@ -19,11 +19,12 @@ export class Watchlist {
   ) {
     root.innerHTML = `
       <div class="wl-title">Lista de seguimiento</div>
-      <div class="wl-row wl-cols"><span>Símbolo</span><span>Último</span><span>Cambio</span><span>%</span><span></span></div>
+      <div class="wl-row wl-cols"><span>Símbolo</span><span>Último<i class="wl-rs" data-c="2"></i></span><span>Cambio<i class="wl-rs" data-c="3"></i></span><span>%<i class="wl-rs" data-c="4"></i></span><span></span></div>
       <div class="wl-list"></div>
       <form class="wl-add"><input placeholder="Añadir símbolo (p. ej. ETHUSDT)" spellcheck="false" autocapitalize="characters"><button>+</button></form>
       <div class="wl-msg dim"></div>`;
     this.listEl = root.querySelector('.wl-list')!;
+    this.installColumnResize();
     const form = root.querySelector('form')!;
     const input = form.querySelector('input')!;
     const msg = root.querySelector('.wl-msg') as HTMLElement;
@@ -46,6 +47,47 @@ export class Watchlist {
         msg.textContent = `No encuentro ${s} en ${this.hub.provider.label}`;
       }
     };
+  }
+
+  /** Columnas ajustables arrastrando su borde izquierdo en la cabecera (se recuerda en este equipo). */
+  private installColumnResize() {
+    const KEY = 'wlCols';
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (saved) for (const k of ['2', '3', '4']) if (saved[k]) this.root.style.setProperty(`--c${k}`, `${saved[k]}px`);
+    } catch {
+      /* sin almacenamiento */
+    }
+    this.root.querySelectorAll<HTMLElement>('.wl-rs').forEach((h) => {
+      h.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const c = h.dataset.c!;
+        const startX = e.clientX;
+        const startW = (h.parentElement as HTMLElement).getBoundingClientRect().width;
+        h.classList.add('drag');
+        document.body.classList.add('resizing');
+        const move = (ev: PointerEvent) => {
+          const w = Math.max(30, Math.min(220, Math.round(startW - (ev.clientX - startX))));
+          this.root.style.setProperty(`--c${c}`, `${w}px`);
+        };
+        const up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          h.classList.remove('drag');
+          document.body.classList.remove('resizing');
+          const out: Record<string, number> = {};
+          for (const k of ['2', '3', '4']) out[k] = parseInt(getComputedStyle(this.root).getPropertyValue(`--c${k}`)) || 0;
+          try {
+            localStorage.setItem(KEY, JSON.stringify(out));
+          } catch {
+            /* sin almacenamiento */
+          }
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      });
+    });
   }
 
   setSymbols(list: string[]) {

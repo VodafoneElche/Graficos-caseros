@@ -75,6 +75,13 @@ body {
   flex-wrap: wrap;
   min-height: 34px;
 }
+.version {
+  color: var(--dim);
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
 .symbox {
   background: var(--ui2);
   border: none;
@@ -220,20 +227,15 @@ body {
   background: #000;
 }
 
-/* Barra de herramientas de la izquierda */
+/* Herramientas de dibujo (en la barra de arriba, tras "Indicadores") */
 #toolbar {
-  width: 42px;
-  flex-shrink: 0;
-  background: var(--ui);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding-top: 6px;
+  gap: 1px;
 }
 .tool {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 28px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -256,7 +258,32 @@ body {
 }
 
 /* Lista de seguimiento (derecha, como en TradingView) */
+/* Separador arrastrable entre los gráficos y la lista */
+#wl-splitter {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: ew-resize;
+  background: #000;
+  margin: 0 -4px 0 -4px;
+  position: relative;
+  z-index: 5;
+}
+#wl-splitter:hover,
+#wl-splitter.drag {
+  background: #2962ff;
+}
+body.hide-sidebar #wl-splitter {
+  display: none;
+}
+body.resizing,
+body.resizing * {
+  cursor: ew-resize !important;
+  user-select: none;
+}
 #watchlist {
+  --c2: 82px;
+  --c3: 66px;
+  --c4: 60px;
   width: 340px;
   flex-shrink: 0;
   background: var(--ui);
@@ -277,7 +304,7 @@ body.hide-sidebar #watchlist {
 }
 .wl-row {
   display: grid;
-  grid-template-columns: minmax(86px, 1fr) 82px 66px 60px 12px;
+  grid-template-columns: minmax(40px, 1fr) var(--c2) var(--c3) var(--c4) 12px;
   gap: 4px;
   align-items: center;
   padding: 5px 8px 5px 12px;
@@ -297,6 +324,25 @@ body.hide-sidebar #watchlist {
 }
 .wl-cols span:not(:first-child) {
   text-align: right;
+}
+.wl-cols > span {
+  position: relative;
+  overflow: visible !important;
+}
+.wl-rs {
+  position: absolute;
+  left: -6px;
+  top: -4px;
+  bottom: -4px;
+  width: 8px;
+  cursor: ew-resize;
+}
+.wl-rs:hover,
+.wl-rs.drag {
+  border-left: 2px solid #2962ff;
+}
+.wl-list {
+  overflow-x: hidden;
 }
 .wl-list .wl-row:hover {
   background: var(--ui2);
@@ -512,30 +558,6 @@ body.hide-sidebar #watchlist {
 }
 .lg-val {
   font-weight: 400;
-}
-.max-btn {
-  position: absolute;
-  top: 6px;
-  right: 86px;
-  z-index: 4;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(30, 30, 30, 0.75);
-  border: 1px solid #434651;
-  border-radius: 4px;
-  color: var(--text);
-  cursor: pointer;
-  opacity: 0.55;
-}
-.max-btn:hover,
-.panel:hover .max-btn {
-  opacity: 1;
-}
-.max-btn:hover {
-  background: var(--ui3);
 }
 .scale-btns {
   position: absolute;
@@ -968,7 +990,7 @@ dialog.symsearch[open] {
   #main {
     flex-direction: column;
   }
-  #toolbar {
+  #wl-splitter {
     display: none;
   }
   #watchlist {

@@ -1,4 +1,4 @@
-import type { LayoutCfg, MaCfg, PanelCfg, PivotCfg, PivotLevelName, TfId, TwoYmaCfg } from '../core/types';
+import type { LayoutCfg, MaCfg, PanelCfg, PivotCfg, PivotLevelName, RsiCfg, TfId, TwoYmaCfg } from '../core/types';
 
 // Colores y configuración por defecto, copiados de la configuración de TradingView de Jose.
 
@@ -72,6 +72,35 @@ export function defaultPivotCfg(): PivotCfg {
   return { type: 'Traditional', tf: 'Auto', count: 5, useDaily: true, showLabels: false, showPrices: false, labelsPos: 'left', width: 1, levels };
 }
 
+/** RSI según el pantallazo de Jose: 14 cierre, suavizado SMA 14 (oculto), fondo y degradados activados. */
+export function defaultRsiCfg(): RsiCfg {
+  return {
+    length: 14,
+    source: 'close',
+    smoothing: 'SMA',
+    smoothingLength: 14,
+    bbMult: 2,
+    waitClose: true,
+    color: '#7e57c2',
+    width: 1,
+    showMa: false,
+    maColor: '#f7c80a',
+    upper: { on: false, value: 70, color: '#787b86' },
+    middle: { on: false, value: 50, color: '#787b86' },
+    lower: { on: false, value: 30, color: '#787b86' },
+    bgFill: true,
+    bgColor: 'rgba(126,87,194,0.10)',
+    obFill: true,
+    obColor: '#4caf50',
+    osFill: true,
+    osColor: '#f23645',
+    axisLabel: true,
+    statusValue: true,
+    hiddenOn: [],
+    height: 0.3,
+  };
+}
+
 /** 2YMA con los colores del pantallazo de Jose. */
 export function defaultTwoYma(on = false): TwoYmaCfg {
   return {
@@ -88,7 +117,7 @@ export function defaultTwoYma(on = false): TwoYmaCfg {
 
 /** Configuración de cada gráfico, según los pantallazos de Jose. */
 export function defaultPanel(tf: TfId): PanelCfg {
-  const base: PanelCfg = { tf, mas: defaultMas(), rsi: false, volume: false, pivots: false, pivotCfg: defaultPivotCfg(), twoYma: defaultTwoYma(), legendOpen: true };
+  const base: PanelCfg = { tf, mas: defaultMas(), rsi: false, volume: false, pivots: false, pivotCfg: defaultPivotCfg(), rsiCfg: defaultRsiCfg(), twoYma: defaultTwoYma(), legendOpen: true };
   switch (tf) {
     case '1D':
       return { ...base, mas: defaultMas({ ema20: true, ema50: true, sma200: true }), twoYma: defaultTwoYma(true) };
@@ -131,6 +160,7 @@ export function normalizeLayout(l: Partial<LayoutCfg> | null): LayoutCfg {
     delete out.mtfVisible;
     out.pivotCfg = { ...defaultPivotCfg(), ...(out.pivotCfg || {}) };
     out.twoYma = { ...defaultTwoYma(), ...(out.twoYma || {}) };
+    out.rsiCfg = { ...defaultRsiCfg(), ...(out.rsiCfg || {}) };
     return out;
   };
   return {

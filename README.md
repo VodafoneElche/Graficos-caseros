@@ -8,7 +8,7 @@ Aplicación web privada de gráficos de trading, para uso familiar. Sustituye la
 
 ## Instalar el programa en Windows (recomendado)
 
-1. Descarga el instalador: <https://github.com/VodafoneElche/Graficos-caseros/releases/download/ultima-version/Graficos-familia-Setup-0.1.0.exe>
+1. Descarga el instalador: <https://github.com/VodafoneElche/Graficos-caseros/releases/download/ultima-version/Graficos-familia-Setup.exe>
    (o entra en <https://github.com/VodafoneElche/Graficos-caseros/releases> y pulsa el `.exe`).
 2. Haz doble clic en el archivo descargado. Si Windows avisa con *"Windows protegió su PC"*, pulsa *Más información → Ejecutar de todas formas* (el instalador no está firmado, es nuestro).
 3. Sigue el asistente. Crea el acceso **Gráficos familia** en el escritorio y en el menú Inicio.
@@ -44,17 +44,20 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 | Extensión de Fibonacci | Botón de Fibonacci y 3 clics: inicio, final y retroceso. Doble clic en ella para cambiar niveles y colores. Se mueve arrastrándola y cada punto por separado. |
 | Cambiar de símbolo | Clic en la lista de seguimiento de la derecha. Cambian los 6 gráficos a la vez. Los símbolos en gris (oro, plata, acciones) tendrán datos en la fase 4. |
 | Añadir un símbolo | Escribe el par (p. ej. `ETHUSDT`) abajo en la lista y pulsa **+**. Para quitarlo, pasa el ratón por encima y pulsa ✕. |
-| Cuadrícula / gráfico grande | Botón ⛶ arriba a la derecha de cada gráfico, o **Uno grande** (abre el gráfico seleccionado). En grande, **Tab** pasa al siguiente gráfico y **Mayús+Tab** al anterior. También el botón ⤢ que aparece en la leyenda al pasar el ratón, o doble clic sobre las fechas de abajo. |
+| Cuadrícula / gráfico grande | **Doble clic** en un gráfico lo pone en grande; doble clic otra vez vuelve a los 6. También **Uno grande** (abre el gráfico seleccionado). En grande, **Tab** pasa al siguiente gráfico y **Mayús+Tab** al anterior. |
 | Cambiar la temporalidad de un gráfico | Haz clic en el gráfico (queda con borde azul) y pulsa la temporalidad en la barra de arriba (45s, 1m, 2m, 5m, 10m, 15m, 30m, 1h, 3h, 4h, D, S, M). |
 | Mostrar/ocultar indicadores | En la leyenda de arriba a la izquierda, con el ojo de cada indicador (como en TradingView). `⌄ 5` despliega la lista y `⌃` la recoge. |
 | Configurar medias y medias de otra temporalidad | Botón ⚙ de la leyenda (o clic en el nombre del símbolo de la leyenda). Ahí cambias periodo, tipo (EMA/SMA), color, grosor, y añades medias tipo "EMA 50 de 15m". |
-| Línea horizontal | Botón de línea horizontal en la barra de la izquierda (o **Alt+H**) y clic en el gráfico. Aparece en los 6 gráficos del mismo símbolo. |
+| Línea horizontal | Botón de línea horizontal en la barra de arriba (tras Indicadores) (o **Alt+H**) y clic en el gráfico. Aparece en los 6 gráficos del mismo símbolo. |
 | Mover una línea | Arrástrala con el ratón (el cursor cambia a ↕ encima de la línea). |
 | Color, grosor (desde 0,5 px), precio exacto o borrar | Haz clic en la línea: arriba aparece la barra de edición. **Supr** la borra, **Esc** la deselecciona. |
-| Regla de medir | Botón de la regla en la barra de la izquierda: clic en el punto de inicio y clic en el final. También **Mayúsculas + arrastrar**. Muestra variación, %, ticks, barras, tiempo y volumen. **Esc** la quita. |
+| Regla de medir | Botón de la regla en la barra de arriba (tras Indicadores): clic en el punto de inicio y clic en el final. También **Mayúsculas + arrastrar**. Muestra variación, %, ticks, barras, tiempo y volumen. **Esc** la quita. |
 | Zoom | Lupas **−** y **+** abajo a la derecha de cada gráfico (o **Alt −** / **Alt +**), además de la rueda del ratón. |
 | Encuadre automático | Botón **A** abajo a la derecha (o **Alt+A**). Se apaga si estiras la escala de precios a mano; púlsalo para volver a encuadrar. |
 | Escala logarítmica | Botón **L** abajo a la derecha (o **Alt+L**). Se guarda por gráfico. |
+| RSI | Doble clic en "RSI" en la leyenda (o ⚙): longitud, fuente, suavizado (RSI-based MA), intervalo de tiempo, bandas 70/50/30, fondo, degradados de sobrecompra/sobreventa y alto del panel. El panel también se agranda arrastrando su línea de separación. |
+| Ancho de la lista de seguimiento | Arrastra la línea entre los gráficos y la lista. Las columnas (Último, Cambio, %) se ajustan arrastrando su borde en la cabecera. Se recuerda en cada ordenador. |
+| Versión | Arriba a la derecha (p. ej. v0.2.0). |
 | Más historia | Desplaza el gráfico hacia la izquierda: carga velas antiguas automáticamente. |
 
 Las líneas, la watchlist y la configuración de los gráficos se guardan en el servidor (archivo `datos\graficos.db`). **Copia esa carpeta `datos` si quieres hacer una copia de seguridad.**

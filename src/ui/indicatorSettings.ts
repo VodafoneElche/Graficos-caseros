@@ -8,6 +8,8 @@ import type {
   PivotTf,
   PivotType,
   PriceSource,
+  RsiBand,
+  RsiCfg,
   SmoothingType,
   TfGroup,
   TfId,
@@ -267,6 +269,71 @@ export function openMaSettings(initial: MaCfg, chartTf: TfId, onApply: (m: MaCfg
     },
   };
   openDialog(m.type, [inputs, style, visibilityTab(m.hiddenOn)], () => onApply(m));
+}
+
+// ── RSI ─────────────────────────────────────────────────────────────────────
+
+export function openRsiSettings(initial: RsiCfg, onApply: (c: RsiCfg) => void) {
+  const c: RsiCfg = structuredClone(initial);
+  c.hiddenOn = [...(c.hiddenOn || [])];
+  const inputs: Tab = {
+    name: 'Entradas de datos',
+    render: (box) => {
+      const smoothLen = num(c.smoothingLength, (v) => (c.smoothingLength = Math.round(v)), { min: 1, max: 5000, disabled: c.smoothing === 'none' });
+      const bb = num(c.bbMult, (v) => (c.bbMult = v), { min: 0.1, max: 50, step: 0.1, disabled: c.smoothing !== 'SMA+BB' });
+      const wait = check(c.waitClose, 'Espere al cierre de los intervalos de tiempo', (v) => (c.waitClose = v));
+      const waitInput = wait.querySelector('input') as HTMLInputElement;
+      waitInput.disabled = !c.tf;
+      const tfOptions: [string, string][] = [['', 'Gráfico'], ...USER_TFS.map((t) => [t, tfLabel(t)] as [string, string])];
+      box.append(
+        section('CONFIGURACIÓN RSI'),
+        row('Longitud RSI', num(c.length, (v) => (c.length = Math.round(v)), { min: 1, max: 500 })),
+        row('Fuente', select(c.source, SOURCES, (v) => (c.source = v))),
+        section('SUAVIZADO'),
+        row(
+          'Tipo',
+          select(c.smoothing, SMOOTHINGS, (v) => {
+            c.smoothing = v;
+            smoothLen.disabled = v === 'none';
+            bb.disabled = v !== 'SMA+BB';
+          }),
+        ),
+        row('Longitud', smoothLen),
+        row('Desviación estándar BB', bb),
+        section('CÁLCULO'),
+        row(
+          'Intervalo de tiempo',
+          select((c.tf ?? '') as string, tfOptions, (v) => {
+            c.tf = (v || undefined) as TfId | undefined;
+            waitInput.disabled = !c.tf;
+          }),
+        ),
+        h('div', { class: 'tv-row' }, wait),
+      );
+    },
+  };
+  const band = (label: string, b: RsiBand) =>
+    row(label, check(b.on, '', (v) => (b.on = v)), color(b.color, (v) => (b.color = v)), num(b.value, (v) => (b.value = v), { min: 0, max: 100 }));
+  const style: Tab = {
+    name: 'Estilo',
+    render: (box) => {
+      box.append(
+        row('RSI', color(c.color, (v) => (c.color = v)), widthSel(c.width, (v) => (c.width = v))),
+        row('RSI-based MA', check(c.showMa, '', (v) => (c.showMa = v)), color(c.maColor, (v) => (c.maColor = v))),
+        band('RSI Upper Band', c.upper),
+        band('RSI Middle Band', c.middle),
+        band('RSI Lower Band', c.lower),
+        row('RSI Background Fill', check(c.bgFill, '', (v) => (c.bgFill = v)), colorAlpha(c.bgColor, (v) => (c.bgColor = v))),
+        row('Overbought Gradient Fill', check(c.obFill, '', (v) => (c.obFill = v)), color(c.obColor, (v) => (c.obColor = v))),
+        row('Oversold Gradient Fill', check(c.osFill, '', (v) => (c.osFill = v)), color(c.osColor, (v) => (c.osColor = v))),
+        row('Alto del panel (%)', num(Math.round(c.height * 100), (v) => (c.height = v / 100), { min: 10, max: 70 })),
+        section('VALORES DE SALIDA'),
+        h('div', { class: 'tv-row' }, check(c.axisLabel, 'Etiquetas en la escala de precios', (v) => (c.axisLabel = v))),
+        h('div', { class: 'tv-row' }, check(c.statusValue, 'Valores en la línea de estado', (v) => (c.statusValue = v))),
+      );
+    },
+  };
+  openDialog('RSI', [inputs, style, visibilityTab(c.hiddenOn)], () => onApply(c));
 }
 
 // ── Pivots ──────────────────────────────────────────────────────────────────

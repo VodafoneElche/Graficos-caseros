@@ -167,6 +167,41 @@ tools.subscribe((t) => {
 });
 $('#btn-sidebar').onclick = () => document.body.classList.toggle('hide-sidebar');
 
+// Ancho de la lista de seguimiento: se arrastra el separador (se recuerda en este equipo).
+(function installSplitter() {
+  const split = $('#wl-splitter');
+  const wl = $('#watchlist');
+  const KEY = 'wlWidth';
+  const clamp = (w: number) => Math.max(170, Math.min(Math.round(window.innerWidth * 0.6), Math.round(w)));
+  try {
+    const w = parseInt(localStorage.getItem(KEY) || '');
+    if (w) wl.style.width = `${clamp(w)}px`;
+  } catch {
+    /* sin almacenamiento */
+  }
+  split.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = wl.getBoundingClientRect().width;
+    split.classList.add('drag');
+    document.body.classList.add('resizing');
+    const move = (ev: PointerEvent) => (wl.style.width = `${clamp(startW - (ev.clientX - startX))}px`);
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      split.classList.remove('drag');
+      document.body.classList.remove('resizing');
+      try {
+        localStorage.setItem(KEY, String(Math.round(wl.getBoundingClientRect().width)));
+      } catch {
+        /* sin almacenamiento */
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  });
+})();
+
 // Estado de conexión
 provider.onStatus((s) => {
   const dot = $('#conn');
@@ -295,6 +330,9 @@ const watchlist = new Watchlist(
   }
   layout = normalizeLayout(saved);
   $('#provider-name').textContent = provider.label;
+  const ver = $('#app-version');
+  ver.textContent = `v${__APP_VERSION__}`;
+  ver.title = `Versión ${__APP_VERSION__} · compilada el ${__APP_BUILT__.split('-').reverse().join('/')}`;
   watchlist.setSymbols(wl && wl.length ? wl : DEFAULT_WATCHLIST);
   renderModeButtons();
   buildPanels();

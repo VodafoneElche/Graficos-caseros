@@ -94,6 +94,41 @@ export interface TwoYmaCfg {
   showFill: boolean;
 }
 
+export interface RsiBand {
+  on: boolean;
+  value: number;
+  color: string;
+}
+
+/** RSI como el de TradingView (Entradas de datos / Estilo / Visibilidad). */
+export interface RsiCfg {
+  length: number;
+  source: PriceSource;
+  smoothing: SmoothingType; // "RSI-based MA"
+  smoothingLength: number;
+  bbMult: number;
+  tf?: TfId;
+  waitClose: boolean;
+  color: string;
+  width: number;
+  showMa: boolean;
+  maColor: string;
+  upper: RsiBand;
+  middle: RsiBand;
+  lower: RsiBand;
+  bgFill: boolean;
+  bgColor: string;
+  obFill: boolean;
+  obColor: string;
+  osFill: boolean;
+  osColor: string;
+  axisLabel: boolean;
+  statusValue: boolean;
+  hiddenOn: TfGroup[];
+  /** Alto del panel del RSI respecto al gráfico (0,1 a 0,7). */
+  height: number;
+}
+
 /** Configuración de un gráfico (panel). */
 export interface PanelCfg {
   tf: TfId;
@@ -105,6 +140,7 @@ export interface PanelCfg {
   volume: boolean;
   pivots: boolean;
   pivotCfg?: PivotCfg;
+  rsiCfg?: RsiCfg;
   twoYma?: TwoYmaCfg;
   /** Leyenda de indicadores desplegada (como el "⌄ 5" de TradingView). */
   legendOpen: boolean;

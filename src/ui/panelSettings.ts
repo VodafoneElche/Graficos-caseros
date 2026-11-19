@@ -1,7 +1,7 @@
 import { tfLabel } from '../core/timeframes';
 import type { MaCfg, PanelCfg } from '../core/types';
 import { defaultMas, uid } from './defaults';
-import { openMaSettings, openPivotSettings, openTwoYmaSettings } from './indicatorSettings';
+import { openMaSettings, openPivotSettings, openRsiSettings, openTwoYmaSettings } from './indicatorSettings';
 
 // Ventana "Indicadores" de un gráfico: qué indicadores tiene y botón ⚙ para
 // configurar cada uno con su ventana tipo TradingView.
@@ -89,7 +89,12 @@ export function openPanelSettings(initial: PanelCfg, onApply: (cfg: PanelCfg) =>
         ),
       ),
       el('h4', {}, 'Otros'),
-      el('label', { class: 'row' }, checkbox(cfg.rsi, (v) => (cfg.rsi = v)), 'RSI 14 con su media de 14'),
+      el(
+        'div',
+        { class: 'row' },
+        el('label', {}, checkbox(cfg.rsi, (v) => (cfg.rsi = v)), ` RSI ${cfg.rsiCfg?.length ?? 14}`),
+        gear(() => openRsiSettings(cfg.rsiCfg!, (rc) => ((cfg.rsiCfg = rc), (cfg.rsi = true), render()))),
+      ),
       el('label', { class: 'row' }, checkbox(cfg.volume, (v) => (cfg.volume = v)), 'Volumen'),
       el(
         'div',

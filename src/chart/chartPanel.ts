@@ -39,7 +39,8 @@ import { PivotsPrimitive } from './pivotsPrimitive';
 import { MeasurePrimitive, type Measure } from './measurePrimitive';
 import { DrawingsPrimitive, fibExtPrice } from './drawingsPrimitive';
 import { TwoYmaFill } from './twoYmaFill';
-import { openMaSettings, openPivotSettings, openTwoYmaSettings, openFibSettings } from '../ui/indicatorSettings';
+import { RsiFill } from './rsiFill';
+import { openMaSettings, openPivotSettings, openRsiSettings, openTwoYmaSettings, openFibSettings } from '../ui/indicatorSettings';
 
 // Un gráfico completo: velas, volumen, medias, medias de otra temporalidad, RSI,
 // pivots, líneas horizontales y leyenda tipo TradingView (arriba a la izquierda).
@@ -112,13 +113,17 @@ export class ChartPanel {
   private dailyStore: SeriesStore | null = null;
   private rsiSeries: LineApi | null = null;
   private rsiMaSeries: LineApi | null = null;
+  private rsiBbSeries: LineApi[] = [];
+  private rsiFill = new RsiFill();
+  private rsiBbValues: Values[] = [];
   private pivots = new PivotsPrimitive();
   private measure = new MeasurePrimitive();
   private measuring: 'idle' | 'drawing' | 'done' = 'idle';
   private logBtn!: HTMLButtonElement;
   private autoBtn!: HTMLButtonElement;
   private scaleBtns: HTMLDivElement;
-  private maxBtn: HTMLButtonElement;
+  /** Momento del último clic usado por una herramienta (para no confundirlo con un doble clic). */
+  private lastToolClick = 0;
   private drawPrim: DrawingsPrimitive;
   /** Extensión de Fibonacci que se está dibujando (clic, clic, clic). */
   private fibDraft: { id: string; step: number } | null = null;
@@ -181,18 +186,13 @@ export class ChartPanel {
     mk(lupa('+'), 'Acercar (Alt++)', () => this.zoom(0.8));
     this.autoBtn = mk('A', 'Encuadre automático del precio (Alt+A)', () => this.autoFit());
     this.logBtn = mk('L', 'Escala logarítmica (Alt+L)', () => this.toggleLog());
-    this.maxBtn = document.createElement('button');
-    this.maxBtn.className = 'max-btn';
-    this.maxBtn.title = 'Ver en grande / volver a los 6 gráficos (Tab y Mayús+Tab cambian de gráfico)';
-    this.maxBtn.innerHTML = '<svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4"/></svg>';
-    this.maxBtn.onpointerdown = (e) => e.stopPropagation();
-    this.maxBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.deps.onActivate(this);
-      this.deps.onMaximize();
-    };
-    this.el.append(this.chartEl, this.legendEl, this.statusEl, this.scaleBtns, this.maxBtn);
-    this.el.addEventListener('pointerup', () => setTimeout(() => this.refreshAuto(), 0));
+    this.el.append(this.chartEl, this.legendEl, this.statusEl, this.scaleBtns);
+    this.el.addEventListener('pointerup', () =>
+      setTimeout(() => {
+        this.refreshAuto();
+        this.saveRsiHeight();
+      }, 0),
+    );
     this.el.addEventListener('dblclick', () => setTimeout(() => this.refreshAuto(), 0));
     parent.appendChild(this.el);
 
@@ -263,10 +263,14 @@ export class ChartPanel {
     this.el.addEventListener('pointerdown', () => this.deps.onActivate(this), { capture: true });
     this.chartEl.addEventListener('dblclick', (e) => {
       // Doble clic en la zona de la escala de tiempo: maximizar / volver (como Alt+Enter en TradingView).
+      // Doble clic en el gráfico: en grande / volver a los 6 (salvo sobre un Fibonacci, que abre sus ajustes).
       const { x, y } = this.local(e);
-      if (y > this.chartEl.clientHeight - 30) return this.deps.onMaximize();
-      const hit = this.hitDrawing(x, y);
-      if (hit?.d.type === 'fibext') this.openFib(hit.d.id);
+      if (Date.now() - this.lastToolClick < 700 || tools.active !== 'none') return;
+      const hit = this.inMainPane(x, y) ? this.hitDrawing(x, y) : null;
+      if (hit?.d.type === 'fibext') return this.openFib(hit.d.id);
+      if (hit) return;
+      if (x > this.chart.timeScale().width()) return; // doble clic en la escala de precios: la reajusta
+      this.deps.onMaximize();
     });
     this.legendEl.addEventListener('pointerdown', () => (this.legendPressed = true));
     const release = () => setTimeout(() => (this.legendPressed = false), 0);
@@ -318,8 +322,24 @@ export class ChartPanel {
     this.autoBtn.classList.toggle('on', this.chart.priceScale('right').options().autoScale !== false);
   }
 
+  /** Si se ha arrastrado la separación del panel del RSI, se guarda su alto. */
+  private saveRsiHeight() {
+    const rc = this.cfg.rsiCfg;
+    const panes = this.chart.panes();
+    if (!this.rsiSeries || !rc || panes.length < 2) return;
+    const a = panes[0].getHeight();
+    const b = panes[1].getHeight();
+    if (!a || !b) return;
+    const h = +(b / (a + b)).toFixed(3);
+    if (Math.abs(h - rc.height) > 0.02) {
+      rc.height = h;
+      this.deps.onConfigChange(structuredClone(this.cfg));
+    }
+  }
+
   private applyLog() {
-    this.chart.priceScale('right').applyOptions({ mode: this.cfg.logScale ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal });
+    this.chart.priceScale('right', 0).applyOptions({ mode: this.cfg.logScale ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal });
+    if (this.chart.panes().length > 1) this.chart.priceScale('right', 1).applyOptions({ mode: PriceScaleMode.Normal });
     this.logBtn.classList.toggle('on', !!this.cfg.logScale);
     this.refreshAuto();
   }
@@ -403,6 +423,8 @@ export class ChartPanel {
     this.volume = this.volumeMa = null;
     if (this.rsiSeries) this.chart.removeSeries(this.rsiSeries);
     if (this.rsiMaSeries) this.chart.removeSeries(this.rsiMaSeries);
+    for (const x of this.rsiBbSeries) this.chart.removeSeries(x);
+    this.rsiBbSeries = [];
     this.rsiSeries = this.rsiMaSeries = null;
 
     if (this.cfg.volume) {
@@ -445,28 +467,37 @@ export class ChartPanel {
       }
     }
 
-    if (this.cfg.rsi) {
+    const rc = this.cfg.rsiCfg;
+    if (this.cfg.rsi && rc && this.rsiShown()) {
       const base = {
         priceLineVisible: false,
         crosshairMarkerVisible: false,
         priceFormat: { type: 'custom' as const, minMove: 0.01, formatter: (v: number) => formatPrice(v, 2) },
         autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
       };
-      this.rsiSeries = this.chart.addSeries(LineSeries, { ...base, color: THEME.rsi, lineWidth: 1 }, 1);
-      this.rsiMaSeries = this.chart.addSeries(LineSeries, { ...base, color: THEME.rsiMa, lineWidth: 1 }, 1);
-      for (const level of [70, 50, 30]) {
-        this.rsiSeries.createPriceLine({
-          price: level,
-          color: level === 50 ? 'rgba(120,123,134,0.35)' : 'rgba(120,123,134,0.7)',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: false,
-          title: '',
-        });
+      const step = !!rc.tf && rc.tf !== this.cfg.tf;
+      this.rsiSeries = this.chart.addSeries(
+        LineSeries,
+        { ...base, color: rc.color, lineWidth: Math.max(1, Math.round(rc.width)) as 1, lineType: step ? LineType.WithSteps : LineType.Simple, lastValueVisible: rc.axisLabel },
+        1,
+      );
+      if (rc.showMa && rc.smoothing !== 'none') {
+        this.rsiMaSeries = this.chart.addSeries(LineSeries, { ...base, color: rc.maColor, lineWidth: 1, lastValueVisible: rc.axisLabel }, 1);
+        if (rc.smoothing === 'SMA+BB') {
+          for (let k = 0; k < 2; k++) this.rsiBbSeries.push(this.chart.addSeries(LineSeries, { ...base, color: '#089981', lineWidth: 1, lastValueVisible: false }, 1));
+        }
       }
+      for (const band of [rc.upper, rc.middle, rc.lower]) {
+        if (!band.on) continue;
+        this.rsiSeries.createPriceLine({ price: band.value, color: band.color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: '' });
+      }
+      this.rsiSeries.attachPrimitive(this.rsiFill);
+      // El panel del RSI siempre en escala normal 0-100 (aunque el precio esté en logarítmica).
+      this.chart.priceScale('right', 1).applyOptions({ mode: PriceScaleMode.Normal, autoScale: true, scaleMargins: { top: 0.08, bottom: 0.08 } });
+      const h = Math.max(0.1, Math.min(0.7, rc.height || 0.3));
       const panes = this.chart.panes();
-      panes[0]?.setStretchFactor(3);
-      panes[1]?.setStretchFactor(1);
+      panes[0]?.setStretchFactor(1 - h);
+      panes[1]?.setStretchFactor(h);
     }
     this.applyVisibility();
   }
@@ -541,6 +572,8 @@ export class ChartPanel {
     if (!this.symbol) return;
     const wanted = new Map<string, TfId>();
     for (const m of this.cfg.mas) if (m.tf && m.tf !== this.cfg.tf && this.maShown(m)) wanted.set(`mtf:${m.tf}`, m.tf);
+    const rtf = this.cfg.rsiCfg?.tf;
+    if (this.cfg.rsi && rtf && rtf !== this.cfg.tf) wanted.set(`mtf:${rtf}`, rtf);
     if (this.cfg.pivots) wanted.set(`piv:${this.pivotTf()}`, this.pivotTf());
     if (this.cfg.twoYma?.on) wanted.set('2y:1D', '1D');
     for (const [key, un] of this.extraUnsubs) {
@@ -614,15 +647,41 @@ export class ChartPanel {
         r.smooth.map((v) => shift(v, off)),
       );
     }
-    if (this.cfg.rsi) {
-      this.rsiValues = rsi(closes, 14);
-      this.rsiMaValues = sma(this.rsiValues, 14);
+    const rc = this.cfg.rsiCfg;
+    if (this.cfg.rsi && rc && (!rc.tf || rc.tf === this.cfg.tf)) {
+      const r = this.rsiOn(cs);
+      this.rsiValues = r.rsi;
+      this.rsiMaValues = r.ma;
+      this.rsiBbValues = r.bb;
     }
     if (this.cfg.volume) this.volMaValues = sma(cs.map((c) => c.volume), 20);
   }
 
+  /** RSI (con su media "RSI-based MA" y bandas de Bollinger) sobre unas velas. */
+  private rsiOn(cs: Candle[]): { rsi: Values; ma: Values; bb: Values[] } {
+    const rc = this.cfg.rsiCfg!;
+    const r = rsi(sourceValues(cs, rc.source), rc.length);
+    const sm = rc.smoothing !== 'none' ? smoothing(rc.smoothing, r, rc.smoothingLength, cs.map((c) => c.volume), rc.bbMult) : null;
+    return { rsi: r, ma: sm?.line ?? [], bb: sm?.upper && sm.lower ? [sm.upper, sm.lower] : [] };
+  }
+
+  private rsiShown(): boolean {
+    return !(this.cfg.rsiCfg?.hiddenOn || []).includes(tfGroup(this.cfg.tf));
+  }
+
   private computeMtf() {
     const cs = this.candles;
+    const rc = this.cfg.rsiCfg;
+    if (this.cfg.rsi && rc?.tf && rc.tf !== this.cfg.tf) {
+      const st = this.mtfStores.get(rc.tf);
+      if (st?.loaded) {
+        const r = this.rsiOn(st.candles);
+        const proj = (v: Values) => projectSeries(cs, this.cfg.tf, st.candles, rc.tf!, v, rc.waitClose);
+        this.rsiValues = proj(r.rsi);
+        this.rsiMaValues = proj(r.ma);
+        this.rsiBbValues = r.bb.map(proj);
+      }
+    }
     for (const m of this.cfg.mas) {
       if (!m.tf || m.tf === this.cfg.tf) continue;
       const st = this.mtfStores.get(m.tf);
@@ -674,13 +733,19 @@ export class ChartPanel {
     this.computeOwnIndicators();
     this.volumeMa?.setData(toLine(cs, this.volMaValues));
     this.setMaData();
-    if (this.rsiSeries) {
-      this.rsiSeries.setData(toLine(cs, this.rsiValues));
-      this.rsiMaSeries?.setData(toLine(cs, this.rsiMaValues));
-    }
+    this.setRsiData();
     this.renderedCount = cs.length;
     this.redrawExtras();
     this.updateLegend();
+  }
+
+  private setRsiData() {
+    if (!this.rsiSeries) return;
+    const cs = this.candles;
+    this.rsiSeries.setData(toLine(cs, this.rsiValues));
+    this.rsiMaSeries?.setData(toLine(cs, this.rsiMaValues));
+    this.rsiBbSeries.forEach((x, k) => x.setData(toLine(cs, this.rsiBbValues[k] ?? [])));
+    this.rsiFill.set(this.cfg.rsiCfg!, this.rsiValues);
   }
 
   private scheduleUpdate() {
@@ -717,8 +782,11 @@ export class ChartPanel {
         (this.smoothSeries.get(m.id) || []).forEach((s, k) => upd(s, sv[k]?.[i], t));
       }
       upd(this.tyPlot, c.close, t);
-      upd(this.rsiSeries, this.rsiValues[i], t);
-      upd(this.rsiMaSeries, this.rsiMaValues[i], t);
+      if (!this.cfg.rsiCfg?.tf || this.cfg.rsiCfg.tf === this.cfg.tf) {
+        upd(this.rsiSeries, this.rsiValues[i], t);
+        upd(this.rsiMaSeries, this.rsiMaValues[i], t);
+        this.rsiBbSeries.forEach((x, k) => upd(x, this.rsiBbValues[k]?.[i], t));
+      }
     }
     this.renderedCount = n;
     if (appended) this.redrawExtras();
@@ -745,6 +813,8 @@ export class ChartPanel {
       const sv = this.smoothValues.get(m.id) || [];
       (this.smoothSeries.get(m.id) || []).forEach((s, k) => s.setData(toLine(cs, sv[k] ?? [])));
     }
+    if (this.cfg.rsiCfg?.tf && this.cfg.rsiCfg.tf !== this.cfg.tf) this.setRsiData();
+    else if (this.rsiSeries) this.rsiFill.set(this.cfg.rsiCfg!, this.rsiValues);
     if (this.cfg.twoYma?.on) {
       this.tyMa?.setData(toLine(cs, this.tyValues.ma));
       this.tyX5?.setData(toLine(cs, this.tyValues.x5));
@@ -773,8 +843,6 @@ export class ChartPanel {
     if (idx !== undefined) this.legendIdx = idx;
     // No rehacer la leyenda mientras se pulsa un botón suyo (se perdería el clic).
     if (this.legendPressed) return;
-    const psw = this.chart.priceScale('right').width();
-    if (psw) this.maxBtn.style.right = `${psw + 6}px`;
     const cs = this.candles;
     const c = cs.length ? cs[this.legendIdx == null || this.legendIdx < 0 || this.legendIdx >= cs.length ? cs.length - 1 : this.legendIdx] : null;
     const i = c ? cs.indexOf(c) : -1;
@@ -791,7 +859,7 @@ export class ChartPanel {
       const sign = ch >= 0 ? '+' : '';
       html += `<span class="lg-ohlc">O${v(c.open)} H${v(c.high)} L${v(c.low)} C${v(c.close)} <b style="color:${col}">${sign}${this.fmt(ch)} (${sign}${formatPrice(pct, 2)}%)</b> <span>Vol.<b style="color:${col}">${formatVolumeEs(c.volume)}</b></span></span>`;
     }
-    html += `<span class="lg-tools"><button data-act="settings" title="Configurar indicadores">⚙</button><button data-act="max" title="Ver en grande / volver a los 6 (doble clic abajo en las fechas)">⤢</button></span></div>`;
+    html += `<span class="lg-tools"><button data-act="settings" title="Configurar indicadores">⚙</button><button data-act="max" title="Ver en grande / volver a los 6 (o doble clic en el gráfico)">⤢</button></span></div>`;
 
     type Item = { key: string; name: string; value: string; color: string; visible: boolean; removable: boolean };
     const items: Item[] = [];
@@ -819,15 +887,18 @@ export class ChartPanel {
     }
     const pc = cfg.pivotCfg;
     items.push({ key: 'piv', name: `Pivots ${pc?.type ?? 'Traditional'} ${pc?.tf === 'Auto' || !pc ? 'Auto' : tfLabel(pc.tf as TfId)}`, value: '', color: THEME.pivots, visible: cfg.pivots, removable: false });
-    if (cfg.rsi) {
+    if (cfg.rsi && cfg.rsiCfg) {
+      const rc = cfg.rsiCfg;
       const r = this.rsiValues[i];
-      const rm = this.rsiMaValues[i];
-      items.push({ key: 'rsi', name: 'RSI 14 close', value: `${r == null ? '∅' : formatPrice(r, 2)} <span style="color:${THEME.rsiMa}">${rm == null ? '' : formatPrice(rm, 2)}</span>`, color: THEME.rsi, visible: true, removable: true });
+      const rm = rc.showMa ? this.rsiMaValues[i] : null;
+      const tfTxt = rc.tf && rc.tf !== cfg.tf ? ` · ${tfLabel(rc.tf)}` : '';
+      const val = rc.statusValue ? `${r == null ? '∅' : formatPrice(r, 2)}${rm == null ? '' : ` <span style="color:${rc.maColor}">${formatPrice(rm, 2)}</span>`}` : '';
+      items.push({ key: 'rsi', name: `RSI${tfTxt} ${rc.length} ${rc.source}`, value: val, color: rc.color, visible: this.rsiShown(), removable: true });
     }
 
     if (cfg.legendOpen) {
       for (const it of items) {
-        const gear = it.key === 'vol' || it.key === 'rsi' ? '' : `<button class="lg-btn" data-act="cfg" data-key="${it.key}" title="Configuración">${GEAR}</button>`;
+        const gear = it.key === 'vol' ? '' : `<button class="lg-btn" data-act="cfg" data-key="${it.key}" title="Configuración">${GEAR}</button>`;
         const del = it.removable ? `<button class="lg-btn" data-act="del" data-key="${it.key}" title="Quitar del gráfico">${TRASH}</button>` : '';
         html += `<div class="lg-row lg-ind${it.visible ? '' : ' off'}" data-key="${it.key}"><span class="lg-name" title="Doble clic para configurar">${esc(it.name)}</span>
           <span class="lg-acts"><button class="lg-eye" data-act="eye" data-key="${it.key}" title="${it.visible ? 'Ocultar' : 'Mostrar'}">${it.visible ? EYE_ON : EYE_OFF}</button>${gear}${del}</span>
@@ -855,6 +926,13 @@ export class ChartPanel {
         cfg.pivotCfg = pc;
         cfg.pivots = true;
         this.configChanged(false);
+      });
+    }
+    if (key === 'rsi') {
+      return openRsiSettings(cfg.rsiCfg!, (rc) => {
+        cfg.rsiCfg = rc;
+        cfg.rsi = true;
+        this.configChanged(true);
       });
     }
     if (key === '2y') {
@@ -906,7 +984,9 @@ export class ChartPanel {
         return this.configChanged(true);
       }
       if (key === 'rsi') {
-        cfg.rsi = false;
+        const rc = cfg.rsiCfg!;
+        if (!this.rsiShown()) rc.hiddenOn = [];
+        else cfg.rsi = false;
         return this.configChanged(true);
       }
       if (key === '2y') {
@@ -1154,6 +1234,7 @@ export class ChartPanel {
       'pointerdown',
       (e) => {
         if (e.button !== 0) return;
+        if (tools.active !== 'none' || this.fibDraft || this.measuring === 'drawing' || e.shiftKey) this.lastToolClick = Date.now();
         const { x, y } = this.local(e);
         if (!this.inMainPane(x, y)) return;
         const d = this.deps.drawings;

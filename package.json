@@ -1,6 +1,6 @@
 {
   "name": "graficos-familia",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Gráficos familia: app privada de gráficos de trading",
   "scripts": {
     "dev": "vite",
@@ -51,7 +51,7 @@
           ]
         }
       ],
-      "artifactName": "Graficos-familia-Setup-${version}.${ext}"
+      "artifactName": "Graficos-familia-Setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
