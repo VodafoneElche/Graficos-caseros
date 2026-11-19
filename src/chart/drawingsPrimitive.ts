@@ -26,6 +26,8 @@ export interface DrawingsHost {
   hoveredId(): string | null;
   /** Último precio (para la ganancia/pérdida abierta de la posición). */
   lastPrice(): number | null;
+  /** ¿La línea tiene una alerta activa? (se pinta un despertador sobre ella) */
+  hasAlert?(id: string): boolean;
 }
 
 /**
@@ -210,6 +212,24 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
           ctx.lineTo(bitmapSize.width, y);
           ctx.stroke();
           if (selected) handle(bitmapSize.width / 2, y, d.color);
+          if (this.host.hasAlert?.(d.id)) {
+            // Despertador junto al eje, como en TradingView.
+            const cx = bitmapSize.width - 14 * hr;
+            const r = 5 * vr;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.arc(cx, y, r + 2 * vr, 0, Math.PI * 2);
+            ctx.fillStyle = '#000d2e';
+            ctx.fill();
+            ctx.lineWidth = 1.3 * hr;
+            ctx.strokeStyle = d.color;
+            ctx.beginPath();
+            ctx.arc(cx, y, r, 0, Math.PI * 2);
+            ctx.moveTo(cx, y - r * 0.6);
+            ctx.lineTo(cx, y);
+            ctx.lineTo(cx + r * 0.5, y + r * 0.3);
+            ctx.stroke();
+          }
         } else if (d.type === 'vline') {
           const x0 = this.host.timeToX(d.time);
           if (x0 == null) continue;

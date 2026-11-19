@@ -1,8 +1,9 @@
-# Gráficos familia (fase 1)
+# Gráficos familia
 
 Aplicación web privada de gráficos de trading, para uso familiar. Sustituye las funciones de TradingView que usamos de verdad, con datos gratuitos.
 
-**Fase 1 (esta versión):** cripto de Binance, cuadrícula de 6 gráficos, indicadores, watchlist y líneas horizontales guardadas.
+**Fase 1:** cripto de Binance, cuadrícula de 6 gráficos, indicadores, watchlist y líneas horizontales guardadas.
+**Fase 2 (esta versión):** alertas de precio (desde una línea horizontal) y de RSI, con aviso al móvil por Telegram.
 
 ---
 
@@ -73,6 +74,31 @@ El punto de color de arriba a la derecha indica la conexión en tiempo real con 
 
 Copiado de la configuración de TradingView de Jose: fondo azul marino `#000d2e` sin cuadrícula, velas alcistas huecas blancas y bajistas grises `#4a4a4a`, EMA 20 blanca, EMA 50 roja, SMA 200 morada, medias de otra temporalidad naranjas, líneas horizontales amarillas, valores de los indicadores en el eje derecho y números en formato español (64.663,50). La configuración de Fibonacci y de la caja de posición está en `src/core/toolDefaults.ts`.
 
+## Alertas (fase 2)
+
+### Configurar Telegram (una sola vez, 3 minutos)
+
+1. En Telegram busca **@BotFather** (con la marca azul de verificado), pulsa **INICIAR** y escribe `/newbot`.
+2. Ponle un nombre (p. ej. *Alertas Jose*) y un usuario que acabe en `bot` (p. ej. *alertas_jose_elche_bot*).
+3. BotFather te da un **token** tipo `7123456789:AAHk…`. Es como una contraseña: no lo compartas.
+4. En el programa pulsa **⏰ Alertas → Telegram**, pega el token y pulsa **Guardar token**.
+5. En Telegram abre tu bot nuevo y pulsa **INICIAR**. Vuelve al programa y pulsa **Buscar mi chat**.
+6. Pulsa **Enviar prueba**: te tiene que llegar un mensaje al móvil.
+
+### Crear alertas
+
+- **Desde una línea:** selecciona una línea horizontal y pulsa **⏰** en la barra de la línea. La alerta queda ligada a la línea: si la mueves, la alerta se mueve; si la borras, se borra. Las líneas con alerta llevan un despertador junto al eje.
+- **Desde la ventana Alertas:** botón **＋ Nueva alerta**. Tipo *Precio* (cruce, cruce hacia arriba o hacia abajo) o *RSI* (RSI 14 de diario, semanal, mensual, 4h o 1h cruzando un valor).
+- **Sólo una vez** (como en TradingView): al saltar se desactiva; se reactiva con la casilla de la lista. **Cada vez**: salta en cada cruce (como mucho una vez por minuto).
+- Cuando salta: mensaje de Telegram, aviso con sonido en el programa y queda apuntada en **Historial**.
+
+### Quién vigila los precios
+
+Las alertas las vigila el **servidor** (no la ventana), con el WebSocket de Binance en tiempo real. Si el WebSocket se cae, mientras se reconecta pregunta el precio cada 5 s. El RSI se revisa cada minuto con la vela en curso.
+Si el servidor estuvo apagado y el precio cruzó mientras tanto, la alerta salta al volver a encenderse.
+
+En el programa de Windows el servidor va dentro del programa: **sólo vigila mientras el programa esté abierto**. Para vigilar 24 h con el PC apagado, el mismo servidor se puede poner en un servidor de internet (ver más abajo cuando se elija).
+
 ## Qué incluye la fase 1
 
 - Cuadrícula de 6 gráficos del mismo símbolo en 2 columnas x 3 filas (izquierda **1D, 4h, 1h**; derecha **15m, 5m, 45s**), con cruz sincronizada (mismo precio y misma hora en todos).
@@ -89,7 +115,7 @@ Las fórmulas de EMA, SMA, RSI y pivots son las mismas que usa TradingView, así
 
 - El gráfico de **45s** sale de velas de 1 segundo; al abrirlo carga unas 5 horas de historia (más si te desplazas a la izquierda).
 - Todavía **no hay usuario y contraseña**: por eso el servidor sólo acepta conexiones desde el mismo ordenador. El acceso desde el móvil y para toda la familia llega en la fase 5.
-- Las alertas por Telegram llegan en la fase 2; líneas de tendencia en la fase 3; oro, plata y acciones en la fase 4.
+- Líneas de tendencia en la fase 3; oro, plata y acciones en la fase 4. Las alertas (fase 2) de momento sólo funcionan con cripto de Binance.
 
 ---
 
@@ -110,6 +136,8 @@ src/
   chart/          Panel de gráfico, pivots (primitiva propia), cruz sincronizada
   ui/             Watchlist, ajustes, valores por defecto
 server/server.mjs Servidor Node sin dependencias (SQLite incluido en Node ≥ 22.13)
+server/alerts.mjs Motor de alertas: WebSocket de Binance, RSI, Telegram (variable opcional TELEGRAM_BOT_TOKEN)
+src/ui/alerts.ts  Ventana de alertas, botón ⏰ de la línea y avisos en directo
 dist/             Aplicación compilada (lo que sirve el servidor)
 ```
 

@@ -1,3 +1,4 @@
+import { alertsStore } from '../ui/alerts';
 import {
   CandlestickSeries,
   ColorType,
@@ -249,6 +250,7 @@ export class ChartPanel {
       formatTime: (t) => this.formatTime(t),
       hoveredId: () => this.hoverId,
       lastPrice: () => (this.candles.length ? this.candles[this.candles.length - 1].close : null),
+      hasAlert: (id) => alertsStore.alertDrawings.has(id),
     });
     this.candle.attachPrimitive(this.drawPrim);
     this.candle.attachPrimitive(this.tyFill);

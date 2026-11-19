@@ -13,6 +13,7 @@ import { openPanelSettings } from './ui/panelSettings';
 import { tools } from './ui/tools';
 import { Watchlist } from './ui/watchlist';
 import { openSymbolSearch } from './ui/symbolSearch';
+import { initAlerts } from './ui/alerts';
 
 // Punto de entrada: monta la barra superior, la watchlist y los gráficos.
 
@@ -321,6 +322,9 @@ const watchlist = new Watchlist(
   (s) => setSymbol(s),
   (list) => api.putSetting('watchlist2', list).catch(() => {}),
 );
+
+// ── Alertas (fase 2) ───────────────────────────────────────────────────────
+initAlerts({ drawings, getSymbol: () => layout.symbol, goSymbol: (s) => setSymbol(s) });
 
 // ── Arranque ───────────────────────────────────────────────────────────────
 (window as any).__app = { get panels() { return panels; }, hub, drawings };
