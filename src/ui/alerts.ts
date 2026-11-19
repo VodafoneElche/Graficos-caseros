@@ -129,6 +129,8 @@ function beep() {
 // ── Estado compartido ───────────────────────────────────────────────────────
 class AlertsStore {
   items: Alert[] = [];
+  /** Ids de las líneas con alerta activa (para dibujar el despertador). */
+  alertDrawings = new Set<string>();
   status: Status | null = null;
   private listeners = new Set<() => void>();
   subscribe(fn: () => void) {
@@ -136,6 +138,7 @@ class AlertsStore {
     return () => this.listeners.delete(fn);
   }
   emit() {
+    this.alertDrawings = new Set(this.items.filter((a) => a.active && a.drawingId).map((a) => a.drawingId!));
     this.listeners.forEach((f) => f());
   }
   async refresh() {
@@ -150,10 +153,6 @@ class AlertsStore {
   }
   forDrawing(drawingId: string) {
     return this.items.find((a) => a.drawingId === drawingId);
-  }
-  /** Ids de las líneas con alerta activa (para dibujar la campanita). */
-  activeDrawingIds(): Set<string> {
-    return new Set(this.items.filter((a) => a.active && a.drawingId).map((a) => a.drawingId!));
   }
   async save(a: Alert) {
     const saved = await call<Alert>('PUT', `/api/alerts/${encodeURIComponent(a.id)}`, a);
@@ -611,6 +610,7 @@ export function initAlerts(opts: { drawings: DrawingsStore; getSymbol: () => str
     const n = alertsStore.items.filter((a) => a.active).length;
     badge.textContent = n ? String(n) : '';
     const tg = alertsStore.status?.telegram;
+    (drawings as any).emit?.(); // repintar los gráficos (despertador en las líneas)
     btn.classList.toggle('warn', n > 0 && !!tg && !(tg.hasToken && tg.chatId && tg.enabled));
     renderBell();
   });
