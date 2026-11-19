@@ -63,11 +63,19 @@ type LineApi = ISeriesApi<'Line'>;
 
 const HIT_PX = 6;
 
-function toLine(candles: Candle[], values: Values): LineData<Time>[] {
+/**
+ * Valores → puntos de la línea. Con `smooth` (medias de OTRA temporalidad) sólo se pone un
+ * punto donde cambia el valor, y la línea los une en diagonal: sale suave, como en
+ * TradingView, en vez de en escalones.
+ */
+function toLine(candles: Candle[], values: Values, smooth = false): LineData<Time>[] {
   const out: LineData<Time>[] = [];
-  for (let i = 0; i < candles.length; i++) {
+  const n = candles.length;
+  for (let i = 0; i < n; i++) {
     const v = values[i];
-    if (v != null && Number.isFinite(v)) out.push({ time: candles[i].time as Time, value: v });
+    if (v == null || !Number.isFinite(v)) continue;
+    if (smooth && i > 0 && i < n - 1 && values[i - 1] === v) continue;
+    out.push({ time: candles[i].time as Time, value: v });
   }
   return out;
 }
@@ -455,7 +463,7 @@ export class ChartPanel {
     }
     this.tyFill.setStyle(ty?.on && ty.showFill ? ty : null);
     for (const m of this.cfg.mas) {
-      this.maSeries.set(m.id, this.chart.addSeries(LineSeries, this.lineOpts(m.color, m.width, !!m.tf && m.tf !== this.cfg.tf, m.lineStyle ?? 0, m.axisLabel !== false)));
+      this.maSeries.set(m.id, this.chart.addSeries(LineSeries, this.lineOpts(m.color, m.width, false, m.lineStyle ?? 0, m.axisLabel !== false)));
       if (m.smoothing && m.smoothing !== 'none') {
         const col = m.smoothingColor || '#ffeb3b';
         const list = [this.chart.addSeries(LineSeries, this.lineOpts(col, 1))];
@@ -475,10 +483,9 @@ export class ChartPanel {
         priceFormat: { type: 'custom' as const, minMove: 0.01, formatter: (v: number) => formatPrice(v, 2) },
         autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
       };
-      const step = !!rc.tf && rc.tf !== this.cfg.tf;
       this.rsiSeries = this.chart.addSeries(
         LineSeries,
-        { ...base, color: rc.color, lineWidth: Math.max(1, Math.round(rc.width)) as 1, lineType: step ? LineType.WithSteps : LineType.Simple, lastValueVisible: rc.axisLabel },
+        { ...base, color: rc.color, lineWidth: Math.max(1, Math.round(rc.width)) as 1, lineType: LineType.Simple, lastValueVisible: rc.axisLabel },
         1,
       );
       if (rc.showMa && rc.smoothing !== 'none') {
@@ -719,9 +726,10 @@ export class ChartPanel {
   private setMaData() {
     const cs = this.candles;
     for (const m of this.cfg.mas) {
-      this.maSeries.get(m.id)?.setData(toLine(cs, this.maValues.get(m.id) ?? []));
+      const other = !!m.tf && m.tf !== this.cfg.tf;
+      this.maSeries.get(m.id)?.setData(toLine(cs, this.maValues.get(m.id) ?? [], other));
       const sv = this.smoothValues.get(m.id) || [];
-      (this.smoothSeries.get(m.id) || []).forEach((s, k) => s.setData(toLine(cs, sv[k] ?? [])));
+      (this.smoothSeries.get(m.id) || []).forEach((s, k) => s.setData(toLine(cs, sv[k] ?? [], other)));
     }
   }
 
@@ -742,9 +750,10 @@ export class ChartPanel {
   private setRsiData() {
     if (!this.rsiSeries) return;
     const cs = this.candles;
-    this.rsiSeries.setData(toLine(cs, this.rsiValues));
-    this.rsiMaSeries?.setData(toLine(cs, this.rsiMaValues));
-    this.rsiBbSeries.forEach((x, k) => x.setData(toLine(cs, this.rsiBbValues[k] ?? [])));
+    const other = !!this.cfg.rsiCfg?.tf && this.cfg.rsiCfg.tf !== this.cfg.tf;
+    this.rsiSeries.setData(toLine(cs, this.rsiValues, other));
+    this.rsiMaSeries?.setData(toLine(cs, this.rsiMaValues, other));
+    this.rsiBbSeries.forEach((x, k) => x.setData(toLine(cs, this.rsiBbValues[k] ?? [], other)));
     this.rsiFill.set(this.cfg.rsiCfg!, this.rsiValues);
   }
 
@@ -809,15 +818,17 @@ export class ChartPanel {
     this.computeMtf();
     for (const m of this.cfg.mas) {
       if (!m.tf || m.tf === this.cfg.tf) continue;
-      this.maSeries.get(m.id)?.setData(toLine(cs, this.maValues.get(m.id) ?? []));
+      const other = !!m.tf && m.tf !== this.cfg.tf;
+      this.maSeries.get(m.id)?.setData(toLine(cs, this.maValues.get(m.id) ?? [], other));
       const sv = this.smoothValues.get(m.id) || [];
-      (this.smoothSeries.get(m.id) || []).forEach((s, k) => s.setData(toLine(cs, sv[k] ?? [])));
+      (this.smoothSeries.get(m.id) || []).forEach((s, k) => s.setData(toLine(cs, sv[k] ?? [], other)));
     }
     if (this.cfg.rsiCfg?.tf && this.cfg.rsiCfg.tf !== this.cfg.tf) this.setRsiData();
     else if (this.rsiSeries) this.rsiFill.set(this.cfg.rsiCfg!, this.rsiValues);
     if (this.cfg.twoYma?.on) {
-      this.tyMa?.setData(toLine(cs, this.tyValues.ma));
-      this.tyX5?.setData(toLine(cs, this.tyValues.x5));
+      const other = this.cfg.tf !== '1D';
+      this.tyMa?.setData(toLine(cs, this.tyValues.ma, other));
+      this.tyX5?.setData(toLine(cs, this.tyValues.x5, other));
       this.tyPlot?.setData(cs.map((c) => ({ time: c.time as Time, value: c.close })));
       this.tyFill.setData(
         cs.map((c) => c.close),
