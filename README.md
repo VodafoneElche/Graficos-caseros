@@ -42,6 +42,8 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 | 2YMA | Media de 2 años (730 días) y esa media x 5, con fondos de zona barata/cara. Activada en el gráfico diario. |
 | Línea vertical | Botón de línea vertical (o **Alt+V**) y clic. Se ve en todas las temporalidades. |
 | Extensión de Fibonacci | Botón de Fibonacci y 3 clics: inicio, final y retroceso. Doble clic en ella para cambiar niveles y colores. Se mueve arrastrándola y cada punto por separado. |
+| Retroceso de Fibonacci | Botón de Fibonacci con rayas (o Alt+F) y 2 clics: inicio y final. Doble clic para niveles y colores. |
+| Posición larga / corta | Botón verde-rojo (larga) o rojo-verde (corta) y un clic en el precio de entrada. Arrastra los puntos azules para mover stop, objetivo, entrada y el final de la caja; arrastra la caja para moverla entera. Al pasar el ratón por encima se ven objetivo, stop, cantidad y ratio riesgo/beneficio. Doble clic para tamaño de cuenta, riesgo y colores. |
 | Cambiar de símbolo | Clic en la lista de seguimiento de la derecha. Cambian los 6 gráficos a la vez. Los símbolos en gris (oro, plata, acciones) tendrán datos en la fase 4. |
 | Añadir un símbolo | Escribe el par (p. ej. `ETHUSDT`) abajo en la lista y pulsa **+**. Para quitarlo, pasa el ratón por encima y pulsa ✕. |
 | Cuadrícula / gráfico grande | **Doble clic** en un gráfico lo pone en grande; doble clic otra vez vuelve a los 6. También **Uno grande** (abre el gráfico seleccionado). En grande, **Tab** pasa al siguiente gráfico y **Mayús+Tab** al anterior. |
@@ -56,7 +58,8 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 | Encuadre automático | Botón **A** abajo a la derecha (o **Alt+A**). Se apaga si estiras la escala de precios a mano; púlsalo para volver a encuadrar. |
 | Escala logarítmica | Botón **L** abajo a la derecha (o **Alt+L**). Se guarda por gráfico. |
 | RSI | Doble clic en "RSI" en la leyenda (o ⚙): longitud, fuente, suavizado (RSI-based MA), intervalo de tiempo, bandas 70/50/30, fondo, degradados de sobrecompra/sobreventa y alto del panel. El panel también se agranda arrastrando su línea de separación. |
-| Ancho de la lista de seguimiento | Arrastra la línea entre los gráficos y la lista. Las columnas (Último, Cambio, %) se ajustan arrastrando su borde en la cabecera. Se recuerda en cada ordenador. |
+| Ancho de la lista de seguimiento | Arrastra la línea entre los gráficos y la lista. Las columnas (Último, Cambio, %) se ajustan arrastrando su borde en la cabecera, y se cambian de orden arrastrando su título. Se recuerda en cada ordenador. |
+| Ordenar la lista de seguimiento | Arrastra un símbolo arriba o abajo con el ratón. El orden se guarda. |
 | Versión | Arriba a la derecha (p. ej. v0.2.0). |
 | Más historia | Desplaza el gráfico hacia la izquierda: carga velas antiguas automáticamente. |
 
@@ -68,7 +71,7 @@ El punto de color de arriba a la derecha indica la conexión en tiempo real con 
 
 ## Aspecto
 
-Copiado de la configuración de TradingView de Jose: fondo azul marino `#000d2e` sin cuadrícula, velas alcistas huecas blancas y bajistas grises `#4a4a4a`, EMA 20 blanca, EMA 50 roja, SMA 200 morada, medias de otra temporalidad naranjas, líneas horizontales amarillas, valores de los indicadores en el eje derecho y números en formato español (64.663,50). La configuración de Fibonacci y de la caja de posición ya está guardada en `src/core/toolDefaults.ts` para la fase 3.
+Copiado de la configuración de TradingView de Jose: fondo azul marino `#000d2e` sin cuadrícula, velas alcistas huecas blancas y bajistas grises `#4a4a4a`, EMA 20 blanca, EMA 50 roja, SMA 200 morada, medias de otra temporalidad naranjas, líneas horizontales amarillas, valores de los indicadores en el eje derecho y números en formato español (64.663,50). La configuración de Fibonacci y de la caja de posición está en `src/core/toolDefaults.ts`.
 
 ## Qué incluye la fase 1
 
@@ -86,7 +89,7 @@ Las fórmulas de EMA, SMA, RSI y pivots son las mismas que usa TradingView, así
 
 - El gráfico de **45s** sale de velas de 1 segundo; al abrirlo carga unas 5 horas de historia (más si te desplazas a la izquierda).
 - Todavía **no hay usuario y contraseña**: por eso el servidor sólo acepta conexiones desde el mismo ordenador. El acceso desde el móvil y para toda la familia llega en la fase 5.
-- Las alertas por Telegram llegan en la fase 2; Fibonacci, caja de posición y líneas de tendencia en la fase 3; oro, plata y acciones en la fase 4.
+- Las alertas por Telegram llegan en la fase 2; líneas de tendencia en la fase 3; oro, plata y acciones en la fase 4.
 
 ---
 

@@ -154,6 +154,9 @@ $('#btn-cursor').onclick = () => tools.set('none');
 $('#btn-measure').onclick = () => tools.toggle('measure');
 $('#btn-vline').onclick = () => tools.toggle('vline');
 $('#btn-fibext').onclick = () => tools.toggle('fibext');
+$('#btn-fib').onclick = () => tools.toggle('fib');
+$('#btn-long').onclick = () => tools.toggle('long');
+$('#btn-short').onclick = () => tools.toggle('short');
 $('#btn-indicators').onclick = () => openIndicators(activePanel);
 $('#symbox').onclick = () => openSearch('');
 function openSearch(initial: string) {
@@ -163,6 +166,9 @@ tools.subscribe((t) => {
   $('#btn-measure').classList.toggle('on', t === 'measure');
   $('#btn-vline').classList.toggle('on', t === 'vline');
   $('#btn-fibext').classList.toggle('on', t === 'fibext');
+  $('#btn-fib').classList.toggle('on', t === 'fib');
+  $('#btn-long').classList.toggle('on', t === 'long');
+  $('#btn-short').classList.toggle('on', t === 'short');
   $('#btn-hline').classList.toggle('on', t === 'hline');
   $('#btn-cursor').classList.toggle('on', t === 'none');
 });
@@ -222,13 +228,13 @@ function renderEditor() {
     return;
   }
   editor.style.display = '';
-  const isLine = d.type !== 'fibext';
+  const isLine = d.type === 'hline' || d.type === 'vline';
   for (const sel of ['.le-swatches', '.le-color', '.le-width', '.le-style']) (editor.querySelector(sel) as HTMLElement).style.display = isLine ? '' : 'none';
   (editor.querySelector('.le-cfg') as HTMLElement).style.display = isLine ? 'none' : '';
   const priceInput = editor.querySelector('input.le-price') as HTMLInputElement;
   priceInput.style.display = d.type === 'hline' ? '' : 'none';
   if (d.type === 'hline' && document.activeElement !== priceInput) priceInput.value = String(d.price);
-  if (d.type === 'fibext') return;
+  if (!isLine) return;
   editor.querySelectorAll<HTMLButtonElement>('.swatch').forEach((b) => b.classList.toggle('on', b.dataset.c === d.color));
   (editor.querySelector('.le-width') as HTMLSelectElement).value = String(d.width);
   (editor.querySelector('.le-style') as HTMLSelectElement).value = String(d.style);
@@ -283,6 +289,9 @@ window.addEventListener('keydown', (e) => {
   } else if (e.altKey && (e.key === 'v' || e.key === 'V')) {
     e.preventDefault();
     tools.toggle('vline');
+  } else if (e.altKey && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    tools.toggle('fib');
   } else if (!e.altKey && !e.ctrlKey && !e.metaKey && /^[a-zA-Z0-9]$/.test(e.key) && !document.querySelector('dialog[open]')) {
     // Como en TradingView: empezar a escribir abre el buscador de símbolos.
     e.preventDefault();

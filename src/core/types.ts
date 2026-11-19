@@ -188,12 +188,15 @@ export interface FibLevel {
   on: boolean;
 }
 
-/** Extensión de Fibonacci en función de la tendencia (3 puntos). */
+/**
+ * Fibonacci: 'fibext' = extensión en función de la tendencia (3 puntos A, B, C);
+ * 'fib' = retroceso (2 puntos A, B; el nivel 1 está en A y el 0 en B, como en TradingView).
+ */
 export interface FibExt {
   id: string;
   symbol: string;
-  type: 'fibext';
-  points: { time: number; price: number }[]; // A, B, C
+  type: 'fibext' | 'fib';
+  points: { time: number; price: number }[];
   trendLine: boolean;
   trendColor: string;
   trendStyle: LineStyleId;
@@ -206,4 +209,28 @@ export interface FibExt {
   levels: FibLevel[];
 }
 
-export type Drawing = HLine | VLine | FibExt;
+/** Herramienta de posición larga o corta (entrada, stop y objetivo). */
+export interface Position {
+  id: string;
+  symbol: string;
+  type: 'position';
+  side: 'long' | 'short';
+  entry: { time: number; price: number };
+  /** Instante del borde derecho de la caja. */
+  endTime: number;
+  stop: number;
+  target: number;
+  account: number;
+  lot: number;
+  risk: number;
+  riskUnit: '%' | '$';
+  lineColor: string;
+  stopColor: string;
+  targetColor: string;
+  textColor: string;
+  textSize: number;
+  compact: boolean;
+  alwaysStats: boolean;
+}
+
+export type Drawing = HLine | VLine | FibExt | Position;

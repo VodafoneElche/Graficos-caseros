@@ -329,6 +329,64 @@ body.hide-sidebar #watchlist {
   position: relative;
   overflow: visible !important;
 }
+.wl-last,
+.wl-h[data-k='last'] {
+  order: var(--o-last, 1);
+}
+.wl-ch,
+.wl-h[data-k='ch'] {
+  order: var(--o-ch, 2);
+}
+.wl-pct,
+.wl-h[data-k='pct'] {
+  order: var(--o-pct, 3);
+}
+.wl-del,
+.wl-h-end {
+  order: 9;
+}
+.wl-cols {
+  position: relative;
+}
+.wl-h {
+  cursor: grab;
+  user-select: none;
+}
+.wl-h.wl-moving {
+  color: #2962ff;
+}
+body.moving-col,
+body.moving-col * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+body.moving-row,
+body.moving-row * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.wl-colmark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #2962ff;
+  pointer-events: none;
+}
+.wl-list {
+  position: relative;
+}
+.wl-rowmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #2962ff;
+  pointer-events: none;
+}
+.wl-row.wl-moving {
+  opacity: 0.5;
+}
 .wl-rs {
   position: absolute;
   left: -6px;
