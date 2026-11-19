@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Servidor de la app de gráficos (fase 1).
+// Servidor de la app de gráficos.
 //
 // Sin dependencias externas: sólo necesita Node.js 22.13 o superior (trae SQLite).
 //   - Sirve la aplicación ya compilada (carpeta dist/).
 //   - Guarda dibujos y ajustes en SQLite (carpeta datos/graficos.db).
 //   - Hace de intermediario con la API pública de Binance para el histórico de velas.
+//   - Vigila las alertas de precio y RSI y avisa por Telegram (server/alerts.mjs).
 //
 // Variables de entorno opcionales:
 //   PORT=3000            puerto
@@ -12,6 +13,7 @@
 //                        se hará en la fase 5, cuando haya usuario y contraseña.)
 //   DATA_DIR=./datos     dónde se guarda la base de datos
 //   OPEN_BROWSER=1       abrir el navegador al arrancar
+//   TELEGRAM_BOT_TOKEN   (opcional) token del bot; si no, se pega en la app (Alertas → Telegram)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import http from 'node:http';
@@ -21,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
 
 import { pathToFileURL } from 'node:url';
+import { createAlertEngine } from './alerts.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const USER = 'familia'; // fase 5: cada usuario tendrá el suyo
@@ -69,6 +72,8 @@ export async function startServer(opts = {}) {
       PRIMARY KEY (user, key)
     );
   `);
+
+  const alerts = createAlertEngine({ db, offline: !!opts.offline, log: opts.log || console.log });
 
   const q = {
     listDrawings: db.prepare('SELECT data FROM drawings WHERE user = ? AND symbol = ? ORDER BY created_at'),
@@ -126,6 +131,8 @@ export async function startServer(opts = {}) {
 
     if (parts[1] === 'health') return send(res, 200, { ok: true });
 
+    if (await alerts.handleApi(req, res, url, parts, USER, { send, readJson })) return;
+
     if (parts[1] === 'drawings') {
       if (req.method === 'GET' && parts.length === 2) {
         const symbol = (url.searchParams.get('symbol') || '').toUpperCase();
@@ -144,10 +151,12 @@ export async function startServer(opts = {}) {
         d.symbol = String(d.symbol).toUpperCase();
         const now = Date.now();
         q.upsertDrawing.run(id, USER, d.symbol, d.type, JSON.stringify(d), now, now);
+        alerts.onDrawingSaved(USER, d);
         return send(res, 200, { ok: true });
       }
       if (req.method === 'DELETE') {
         q.deleteDrawing.run(id, USER);
+        alerts.onDrawingDeleted(USER, id);
         return send(res, 200, { ok: true });
       }
     }
@@ -251,7 +260,10 @@ export async function startServer(opts = {}) {
   return {
     port: server.address().port,
     dataFile: path.join(DATA_DIR, 'graficos.db'),
+    alerts,
     close() {
+      alerts.close();
+      server.closeAllConnections?.();
       server.close();
       try {
         db.close();
