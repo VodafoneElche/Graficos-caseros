@@ -9,7 +9,7 @@ import type {
   Time,
 } from 'lightweight-charts';
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
-import type { Drawing, FibExt, LineStyleId } from '../core/types';
+import type { Drawing, FibExt, LineStyleId, Position } from '../core/types';
 
 // Dibuja los dibujos del usuario: líneas horizontales y verticales (con grosor
 // desde 0,5 px) y la extensión de Fibonacci en función de la tendencia.
@@ -22,13 +22,52 @@ export interface DrawingsHost {
   timeToX(t: number): number | null;
   formatPrice(p: number): string;
   formatTime(t: number): string;
+  /** Dibujo bajo el ratón (las estadísticas de la posición se ven al pasar por encima). */
+  hoveredId(): string | null;
+  /** Último precio (para la ganancia/pérdida abierta de la posición). */
+  lastPrice(): number | null;
 }
 
-/** Precio de un nivel de la extensión de Fibonacci: C + (B − A) × nivel. */
+/**
+ * Precio de un nivel de Fibonacci.
+ * Extensión: C + (B − A) × nivel. Retroceso: B + (A − B) × nivel (1 en A, 0 en B).
+ */
 export function fibExtPrice(d: FibExt, level: number): number {
   const [a, b, c] = d.points;
+  if (d.type === 'fib') return b.price + (a.price - b.price) * level;
   return c.price + (b.price - a.price) * level;
 }
+
+/** Tramo horizontal (px) de los niveles: entre B y C en la extensión, entre A y B en el retroceso. */
+export function fibLevelXs(d: FibExt, xs: number[], W: number): [number, number] {
+  const [p, q] = d.type === 'fib' ? [xs[0], xs[1]] : [xs[1], xs[2]];
+  const xa = Math.min(p, q);
+  const xb = Math.max(p, q);
+  return [d.extend === 'left' || d.extend === 'both' ? 0 : xa, d.extend === 'right' || d.extend === 'both' ? W : xb];
+}
+
+/** Cálculos de la posición, como las estadísticas de TradingView. */
+export function positionStats(d: Position, last: number | null) {
+  const dir = d.side === 'long' ? 1 : -1;
+  const riskPer = Math.abs(d.entry.price - d.stop);
+  const rewardPer = Math.abs(d.target - d.entry.price);
+  const riskAmount = d.riskUnit === '%' ? (d.account * d.risk) / 100 : d.risk;
+  const qty = riskPer > 0 ? riskAmount / riskPer / (d.lot || 1) : 0;
+  const units = qty * (d.lot || 1);
+  return {
+    qty,
+    riskAmount,
+    rewardAmount: units * rewardPer,
+    rr: riskPer > 0 ? rewardPer / riskPer : 0,
+    stopPct: d.entry.price ? (riskPer / d.entry.price) * 100 : 0,
+    targetPct: d.entry.price ? (rewardPer / d.entry.price) * 100 : 0,
+    riskPer,
+    rewardPer,
+    pnl: last == null ? null : (last - d.entry.price) * dir * units,
+  };
+}
+
+const nf = (v: number, dec = 2) => v.toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
 function textColorFor(bg: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(bg.trim());
@@ -87,18 +126,26 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     const s = this.series;
     if (!s) return [];
     const out: ISeriesPrimitiveAxisView[] = [];
-    for (const d of this.host.items()) {
-      if (d.type !== 'hline') continue;
-      const y = s.priceToCoordinate(d.price);
-      if (y == null) continue;
+    const sel = this.host.selectedId();
+    const push = (price: number, color: string) => {
+      const y = s.priceToCoordinate(price);
+      if (y == null) return;
       out.push({
         coordinate: () => y,
-        text: () => this.host.formatPrice(d.price),
-        textColor: () => textColorFor(d.color),
-        backColor: () => d.color,
+        text: () => this.host.formatPrice(price),
+        textColor: () => textColorFor(color),
+        backColor: () => color,
         visible: () => true,
         tickVisible: () => true,
       });
+    };
+    for (const d of this.host.items()) {
+      if (d.type === 'hline') push(d.price, d.color);
+      else if (d.type === 'position' && d.id === sel) {
+        push(d.target, '#089981');
+        push(d.entry.price, '#787b86');
+        push(d.stop, '#f23645');
+      }
     }
     return out;
   }
@@ -173,8 +220,10 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
           ctx.lineTo(x, bitmapSize.height);
           ctx.stroke();
           if (selected) handle(x, bitmapSize.height / 2, d.color);
-        } else if (d.type === 'fibext') {
+        } else if (d.type === 'fibext' || d.type === 'fib') {
           this.drawFib(ctx, d, selected, hr, vr, bitmapSize.width, setLine, crisp, handle);
+        } else if (d.type === 'position') {
+          this.drawPosition(ctx, d, selected, hr, vr, bitmapSize.width, handle);
         }
       }
       ctx.restore();
@@ -199,23 +248,19 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
       return x == null || y == null ? null : { x: x * hr, y: y * vr };
     });
     if (pts.some((p) => !p)) return;
-    const [A, B, C] = pts as { x: number; y: number }[];
+    const P = pts as { x: number; y: number }[];
 
-    // Línea de tendencia A → B → C.
+    // Línea de tendencia A → B (→ C).
     if (d.trendLine) {
       setLine(d.trendColor, 1, d.trendStyle, hr);
       ctx.beginPath();
-      ctx.moveTo(A.x, A.y);
-      ctx.lineTo(B.x, B.y);
-      if (d.points.length > 2) ctx.lineTo(C.x, C.y);
+      ctx.moveTo(P[0].x, P[0].y);
+      for (let k = 1; k < P.length; k++) ctx.lineTo(P[k].x, P[k].y);
       ctx.stroke();
     }
 
-    // Niveles: entre la X del punto B y la del punto C (como TradingView sin ampliar).
-    const xa = Math.min(B.x, C.x);
-    const xb = Math.max(B.x, C.x);
-    const x1 = d.extend === 'left' || d.extend === 'both' ? 0 : xa;
-    const x2 = d.extend === 'right' || d.extend === 'both' ? W : xb;
+    // Niveles: extensión entre B y C; retroceso entre A y B (como TradingView sin ampliar).
+    const [x1, x2] = fibLevelXs(d, P.map((p) => p.x), W);
     const on = d.levels.filter((l) => l.on).sort((a, b) => a.value - b.value);
     const ys = on.map((l) => s.priceToCoordinate(fibExtPrice(d, l.value)));
     if (d.background) {
@@ -249,5 +294,90 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     });
 
     if (selected) d.points.forEach((_, k) => handle(pts[k]!.x, pts[k]!.y, '#2962ff'));
+  }
+
+  private drawPosition(
+    ctx: CanvasRenderingContext2D,
+    d: Position,
+    selected: boolean,
+    hr: number,
+    vr: number,
+    W: number,
+    handle: (x: number, y: number, c: string) => void,
+  ) {
+    const s = this.series!;
+    const xa = this.host.timeToX(d.entry.time);
+    const xb = this.host.timeToX(d.endTime);
+    const yE = s.priceToCoordinate(d.entry.price);
+    const yS = s.priceToCoordinate(d.stop);
+    const yT = s.priceToCoordinate(d.target);
+    if (xa == null || xb == null || yE == null || yS == null || yT == null) return;
+    const x1 = Math.min(xa, xb) * hr;
+    const x2 = Math.max(xa, xb) * hr;
+    const w = x2 - x1;
+    const E = yE * vr;
+    const S = yS * vr;
+    const T = yT * vr;
+    ctx.setLineDash([]);
+    ctx.fillStyle = d.targetColor;
+    ctx.fillRect(x1, Math.min(E, T), w, Math.abs(T - E));
+    ctx.fillStyle = d.stopColor;
+    ctx.fillRect(x1, Math.min(E, S), w, Math.abs(S - E));
+    // Línea de entrada.
+    ctx.strokeStyle = d.lineColor;
+    ctx.lineWidth = Math.max(1, Math.round(hr));
+    ctx.beginPath();
+    ctx.moveTo(x1, Math.round(E) + 0.5);
+    ctx.lineTo(x2, Math.round(E) + 0.5);
+    ctx.stroke();
+
+    const show = selected || d.alwaysStats || this.host.hoveredId() === d.id;
+    if (show) {
+      const st = positionStats(d, this.host.lastPrice());
+      const fp = (v: number) => this.host.formatPrice(v);
+      const qtyTxt = nf(st.qty, st.qty >= 100 ? 0 : st.qty >= 1 ? 2 : 4);
+      const tgt = d.compact
+        ? `Objetivo: ${fp(st.rewardPer)} (${nf(st.targetPct)}%) ${nf(st.rewardAmount)}`
+        : `Objetivo: ${fp(st.rewardPer)} (${nf(st.targetPct)}%), Importe: ${nf(st.rewardAmount)}`;
+      const stp = d.compact
+        ? `Stop: ${fp(st.riskPer)} (${nf(st.stopPct)}%) ${nf(st.riskAmount)}`
+        : `Stop: ${fp(st.riskPer)} (${nf(st.stopPct)}%), Importe: ${nf(st.riskAmount)}`;
+      const mid: string[] = [];
+      if (st.pnl != null) mid.push(`${d.compact ? 'P&L' : 'P&L abierta'}: ${nf(st.pnl)}`);
+      mid.push(`Cantidad: ${qtyTxt}`);
+      mid.push(`${d.compact ? 'R/B' : 'Ratio riesgo/beneficio'}: ${nf(st.rr)}`);
+      const fs = Math.round(d.textSize * vr);
+      ctx.font = `${fs}px -apple-system, Segoe UI, Roboto, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const box = (lines: string[], cx: number, cy: number, bg: string) => {
+        const lh = fs * 1.35;
+        const tw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 12 * hr;
+        const th = lh * lines.length + 6 * vr;
+        cx = Math.max(tw / 2 + 2, Math.min(W - tw / 2 - 2, cx)); // que no se salga del gráfico
+        ctx.fillStyle = bg;
+        ctx.beginPath();
+        (ctx as any).roundRect ? (ctx as any).roundRect(cx - tw / 2, cy - th / 2, tw, th, 3 * hr) : ctx.rect(cx - tw / 2, cy - th / 2, tw, th);
+        ctx.fill();
+        ctx.fillStyle = d.textColor;
+        lines.forEach((l, i) => ctx.fillText(l, cx, cy - th / 2 + 3 * vr + lh * (i + 0.5)));
+        return th;
+      };
+      const cx = (x1 + x2) / 2;
+      const off = (fs * 1.35 + 6 * vr) / 2 + 3 * vr;
+      // Objetivo por fuera de su caja, stop por fuera de la suya; el resumen sobre la línea de entrada.
+      const tOut = T < E ? T - off : T + off;
+      const sOut = S < E ? S - off : S + off;
+      box([tgt], cx, tOut, '#089981');
+      box([stp], cx, sOut, '#f23645');
+      box(mid, cx, E, d.side === 'long' ? 'rgba(8,153,129,0.9)' : 'rgba(242,54,69,0.9)');
+    }
+
+    if (selected) {
+      handle(xa * hr, E, '#2962ff');
+      handle(xa * hr, T, '#2962ff');
+      handle(xa * hr, S, '#2962ff');
+      handle(xb * hr, E, '#2962ff');
+    }
   }
 }

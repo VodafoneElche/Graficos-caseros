@@ -4,6 +4,7 @@ import type {
   LineStyleId,
   MaCfg,
   PivotCfg,
+  Position,
   PivotLevelName,
   PivotTf,
   PivotType,
@@ -445,12 +446,62 @@ export function openFibSettings(initial: FibExt, onApply: (patch: Partial<FibExt
       );
     },
   };
-  openDialog('Extensión de Fibonacci en función de la tendencia', [style], () => {
+  openDialog(f.type === 'fib' ? 'Retroceso de Fibonacci' : 'Extensión de Fibonacci en función de la tendencia', [style], () => {
     const { id, symbol, type, points, ...rest } = f;
     void id;
     void symbol;
     void type;
     void points;
+    onApply(rest);
+  });
+}
+
+/** Ajustes de la posición larga/corta (pestañas como en TradingView). */
+export function openPositionSettings(initial: Position, onApply: (patch: Partial<Position>) => void) {
+  const p: Position = structuredClone(initial);
+  const inputs: Tab = {
+    name: 'Entradas de datos',
+    render: (box) => {
+      box.append(
+        row('Tamaño de la cuenta', num(p.account, (v) => (p.account = v), { min: 0, step: 100 })),
+        row('Tamaño del lote', num(p.lot, (v) => (p.lot = v), { min: 0.000001, step: 1 })),
+        row(
+          'Riesgo',
+          num(p.risk, (v) => (p.risk = v), { min: 0, step: 0.5 }),
+          select(p.riskUnit, [
+            ['%', '%'],
+            ['$', 'Importe'],
+          ], (v) => (p.riskUnit = v)),
+        ),
+        section('Niveles'),
+        row('Precio de entrada', num(p.entry.price, (v) => (p.entry = { ...p.entry, price: v }), { step: 0.01 })),
+        row('Objetivo (precio)', num(p.target, (v) => (p.target = v), { step: 0.01 })),
+        row('Stop (precio)', num(p.stop, (v) => (p.stop = v), { step: 0.01 })),
+      );
+    },
+  };
+  const style: Tab = {
+    name: 'Estilo',
+    render: (box) => {
+      box.append(
+        row('Línea', color(p.lineColor, (v) => (p.lineColor = v))),
+        row('Fondo del stop', colorAlpha(p.stopColor, (v) => (p.stopColor = v))),
+        row('Fondo del objetivo', colorAlpha(p.targetColor, (v) => (p.targetColor = v))),
+        row(
+          'Texto',
+          color(p.textColor, (v) => (p.textColor = v)),
+          select(String(p.textSize), [10, 11, 12, 14, 16].map((n) => [String(n), String(n)] as [string, string]), (v) => (p.textSize = +v)),
+        ),
+        h('div', { class: 'tv-row' }, check(p.compact, 'Estadísticas compactas', (v) => (p.compact = v))),
+        h('div', { class: 'tv-row' }, check(p.alwaysStats, 'Mostrar siempre las estadísticas', (v) => (p.alwaysStats = v))),
+      );
+    },
+  };
+  openDialog(p.side === 'long' ? 'Posición larga' : 'Posición corta', [inputs, style], () => {
+    const { id, symbol, type, ...rest } = p;
+    void id;
+    void symbol;
+    void type;
     onApply(rest);
   });
 }

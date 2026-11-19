@@ -2,6 +2,9 @@ import type { DataHub } from '../core/store';
 import type { DayTicker } from '../providers/provider';
 import { formatPrice } from '../chart/format';
 
+type ColKey = 'last' | 'ch' | 'pct';
+const COLS: ColKey[] = ['last', 'ch', 'pct'];
+
 // Lista lateral de símbolos con último precio, cambio y % del día.
 
 export class Watchlist {
@@ -19,12 +22,12 @@ export class Watchlist {
   ) {
     root.innerHTML = `
       <div class="wl-title">Lista de seguimiento</div>
-      <div class="wl-row wl-cols"><span>Símbolo</span><span>Último<i class="wl-rs" data-c="2"></i></span><span>Cambio<i class="wl-rs" data-c="3"></i></span><span>%<i class="wl-rs" data-c="4"></i></span><span></span></div>
+      <div class="wl-row wl-cols"><span class="wl-h-sym">Símbolo</span><span class="wl-h" data-k="last" title="Arrastra para cambiar el orden de las columnas">Último<i class="wl-rs" data-k="last"></i></span><span class="wl-h" data-k="ch" title="Arrastra para cambiar el orden de las columnas">Cambio<i class="wl-rs" data-k="ch"></i></span><span class="wl-h" data-k="pct" title="Arrastra para cambiar el orden de las columnas">%<i class="wl-rs" data-k="pct"></i></span><span class="wl-h-end"></span></div>
       <div class="wl-list"></div>
       <form class="wl-add"><input placeholder="Añadir símbolo (p. ej. ETHUSDT)" spellcheck="false" autocapitalize="characters"><button>+</button></form>
       <div class="wl-msg dim"></div>`;
     this.listEl = root.querySelector('.wl-list')!;
-    this.installColumnResize();
+    this.installColumns();
     const form = root.querySelector('form')!;
     const input = form.querySelector('input')!;
     const msg = root.querySelector('.wl-msg') as HTMLElement;
@@ -49,44 +52,177 @@ export class Watchlist {
     };
   }
 
-  /** Columnas ajustables arrastrando su borde izquierdo en la cabecera (se recuerda en este equipo). */
-  private installColumnResize() {
-    const KEY = 'wlCols';
+  // ---- Columnas: ancho (arrastrar el borde) y orden (arrastrar el título). Se recuerda en este equipo.
+  private colOrder: ColKey[] = ['last', 'ch', 'pct'];
+  private colW: Record<ColKey, number> = { last: 82, ch: 66, pct: 60 };
+
+  private loadCols() {
     try {
-      const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (saved) for (const k of ['2', '3', '4']) if (saved[k]) this.root.style.setProperty(`--c${k}`, `${saved[k]}px`);
+      const w = JSON.parse(localStorage.getItem('wlCols') || 'null');
+      if (w) {
+        // Formato antiguo (v0.2.0): por posición 2/3/4.
+        if (w['2']) Object.assign(w, { last: w['2'], ch: w['3'], pct: w['4'] });
+        for (const k of COLS) if (w[k] > 0) this.colW[k] = w[k];
+      }
+      const o = JSON.parse(localStorage.getItem('wlOrder') || 'null');
+      if (Array.isArray(o) && o.length === 3 && COLS.every((k) => o.includes(k))) this.colOrder = o;
     } catch {
       /* sin almacenamiento */
     }
+  }
+
+  private saveCols() {
+    try {
+      localStorage.setItem('wlCols', JSON.stringify(this.colW));
+      localStorage.setItem('wlOrder', JSON.stringify(this.colOrder));
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
+
+  private applyCols() {
+    const st = this.root.style;
+    this.colOrder.forEach((k, i) => {
+      st.setProperty(`--o-${k}`, String(i + 1));
+      st.setProperty(`--c${i + 2}`, `${this.colW[k]}px`);
+    });
+  }
+
+  private installColumns() {
+    this.loadCols();
+    this.applyCols();
+    // Ancho: borde izquierdo de cada título.
     this.root.querySelectorAll<HTMLElement>('.wl-rs').forEach((h) => {
       h.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const c = h.dataset.c!;
+        const k = h.dataset.k as ColKey;
         const startX = e.clientX;
-        const startW = (h.parentElement as HTMLElement).getBoundingClientRect().width;
+        const startW = this.colW[k];
         h.classList.add('drag');
         document.body.classList.add('resizing');
         const move = (ev: PointerEvent) => {
-          const w = Math.max(30, Math.min(220, Math.round(startW - (ev.clientX - startX))));
-          this.root.style.setProperty(`--c${c}`, `${w}px`);
+          this.colW[k] = Math.max(30, Math.min(220, Math.round(startW - (ev.clientX - startX))));
+          this.applyCols();
         };
         const up = () => {
           window.removeEventListener('pointermove', move);
           window.removeEventListener('pointerup', up);
           h.classList.remove('drag');
           document.body.classList.remove('resizing');
-          const out: Record<string, number> = {};
-          for (const k of ['2', '3', '4']) out[k] = parseInt(getComputedStyle(this.root).getPropertyValue(`--c${k}`)) || 0;
-          try {
-            localStorage.setItem(KEY, JSON.stringify(out));
-          } catch {
-            /* sin almacenamiento */
-          }
+          this.saveCols();
         };
         window.addEventListener('pointermove', move);
         window.addEventListener('pointerup', up);
       });
+    });
+    // Orden: arrastrar el título a izquierda o derecha.
+    const head = this.root.querySelector('.wl-cols') as HTMLElement;
+    head.querySelectorAll<HTMLElement>('.wl-h').forEach((h) => {
+      h.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const k = h.dataset.k as ColKey;
+        const startX = e.clientX;
+        let dragging = false;
+        let target = this.colOrder.indexOf(k);
+        const marker = document.createElement('div');
+        marker.className = 'wl-colmark';
+        const move = (ev: PointerEvent) => {
+          if (!dragging && Math.abs(ev.clientX - startX) < 5) return;
+          if (!dragging) {
+            dragging = true;
+            h.classList.add('wl-moving');
+            document.body.classList.add('moving-col');
+            head.appendChild(marker);
+          }
+          // Hueco más cercano entre columnas (0 = antes de la primera).
+          const rects = this.colOrder.map((c) => (head.querySelector(`.wl-h[data-k="${c}"]`) as HTMLElement).getBoundingClientRect());
+          const edges = [rects[0].left, ...rects.map((r) => r.right)];
+          let best = 0;
+          edges.forEach((x, i) => {
+            if (Math.abs(ev.clientX - x) < Math.abs(ev.clientX - edges[best])) best = i;
+          });
+          target = best;
+          const hr = head.getBoundingClientRect();
+          marker.style.left = `${edges[best] - hr.left - 1}px`;
+        };
+        const up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          if (!dragging) return;
+          h.classList.remove('wl-moving');
+          document.body.classList.remove('moving-col');
+          marker.remove();
+          const from = this.colOrder.indexOf(k);
+          const order = this.colOrder.filter((c) => c !== k);
+          order.splice(target > from ? target - 1 : target, 0, k);
+          this.colOrder = order;
+          this.applyCols();
+          this.saveCols();
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      });
+    });
+  }
+
+  // ---- Filas: arrastrar un símbolo arriba o abajo para cambiar su posición.
+  private suppressClick = false;
+
+  private installRowDrag(row: HTMLElement, s: string) {
+    row.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || (e.target as HTMLElement).classList.contains('wl-del')) return;
+      const startY = e.clientY;
+      let dragging = false;
+      let target = this.symbols.indexOf(s);
+      const marker = document.createElement('div');
+      marker.className = 'wl-rowmark';
+      const move = (ev: PointerEvent) => {
+        if (!dragging && Math.abs(ev.clientY - startY) < 5) return;
+        if (!dragging) {
+          dragging = true;
+          row.classList.add('wl-moving');
+          document.body.classList.add('moving-row');
+          this.listEl.appendChild(marker);
+        }
+        ev.preventDefault();
+        const rows = this.symbols.map((x) => this.rows.get(x)!).filter(Boolean);
+        const lr = this.listEl.getBoundingClientRect();
+        // Desplaza la lista sola si se arrastra cerca del borde.
+        if (ev.clientY < lr.top + 20) this.listEl.scrollTop -= 12;
+        else if (ev.clientY > lr.bottom - 20) this.listEl.scrollTop += 12;
+        let idx = rows.length;
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i].getBoundingClientRect();
+          if (ev.clientY < r.top + r.height / 2) {
+            idx = i;
+            break;
+          }
+        }
+        target = idx;
+        const y = idx < rows.length ? rows[idx].offsetTop : rows[rows.length - 1].offsetTop + rows[rows.length - 1].offsetHeight;
+        marker.style.top = `${y - 1}px`;
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        if (!dragging) return;
+        row.classList.remove('wl-moving');
+        document.body.classList.remove('moving-row');
+        marker.remove();
+        this.suppressClick = true;
+        setTimeout(() => (this.suppressClick = false), 0);
+        const from = this.symbols.indexOf(s);
+        const list = this.symbols.filter((x) => x !== s);
+        list.splice(target > from ? target - 1 : target, 0, s);
+        if (list.join() !== this.symbols.join()) {
+          this.setSymbols(list);
+          this.onChange(this.symbols);
+        }
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
     });
   }
 
@@ -108,7 +244,10 @@ export class Watchlist {
         row.innerHTML = `<span class="wl-sym"></span><span class="wl-last">…</span><span class="wl-ch"></span><span class="wl-pct"></span><button class="wl-del" title="Quitar de la lista">✕</button>`;
         row.querySelector('.wl-sym')!.textContent = s;
         const supported = this.hub.provider.supportsSymbol(s);
+        row.title = 'Clic: abrir · Arrastrar: cambiar de posición';
+        this.installRowDrag(row, s);
         row.onclick = (e) => {
+          if (this.suppressClick) return;
           if ((e.target as HTMLElement).classList.contains('wl-del')) return;
           if (supported) this.onSelect(s);
         };

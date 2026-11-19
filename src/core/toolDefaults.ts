@@ -1,4 +1,4 @@
-import type { FibExt } from './types';
+import type { FibExt, Position } from './types';
 
 // Configuración de las herramientas de dibujo de la FASE 3, copiada de los menús
 // de TradingView de Jose. Se deja aquí ya preparada para usarla al construirlas.
@@ -79,5 +79,42 @@ export function fibExtDefaults(): Omit<FibExt, 'id' | 'symbol' | 'type' | 'point
       lv(3.618, '#9c27b0'),
       lv(4.236, '#e91e63'),
     ],
+  };
+}
+
+/** Retroceso de Fibonacci como lo tiene Jose (ver FIB_DEFAULTS). */
+export function fibDefaults(): Omit<FibExt, 'id' | 'symbol' | 'type' | 'points'> {
+  return {
+    trendLine: FIB_DEFAULTS.trendLine.visible,
+    trendColor: FIB_DEFAULTS.trendLine.color,
+    trendStyle: 2,
+    levelsWidth: FIB_DEFAULTS.levelsLine.width,
+    levelsStyle: 0,
+    extend: 'none',
+    showLabels: true,
+    showPrices: FIB_DEFAULTS.prices,
+    background: FIB_DEFAULTS.background,
+    levels: FIB_DEFAULTS.levels.map((l) => ({ value: l.value, color: l.color, on: l.visible })),
+  };
+}
+
+/** Posición larga/corta como la tiene Jose (ver POSITION_DEFAULTS). */
+export function positionDefaults(): Pick<
+  Position,
+  'account' | 'lot' | 'risk' | 'riskUnit' | 'lineColor' | 'stopColor' | 'targetColor' | 'textColor' | 'textSize' | 'compact' | 'alwaysStats'
+> {
+  const p = POSITION_DEFAULTS;
+  return {
+    account: p.accountSize,
+    lot: p.lotSize,
+    risk: p.risk,
+    riskUnit: p.riskUnit,
+    lineColor: p.lineColor,
+    stopColor: p.stopColor,
+    targetColor: p.targetColor,
+    textColor: p.textColor,
+    textSize: p.textSize,
+    compact: p.compactStats,
+    alwaysStats: p.alwaysShowStats,
   };
 }

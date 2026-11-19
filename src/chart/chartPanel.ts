@@ -17,7 +17,7 @@ import {
 import type { DataHub, SeriesStore, StoreEvent } from '../core/store';
 import type { DrawingsStore } from '../core/drawings';
 import { bucketStart, candleIndexAtOrBefore, nextBucketStart, TIMEFRAMES, tfGroup, tfLabel } from '../core/timeframes';
-import type { Candle, Drawing, FibExt, MaCfg, PanelCfg, TfId } from '../core/types';
+import type { Candle, Drawing, FibExt, MaCfg, PanelCfg, Position, TfId } from '../core/types';
 import {
   buildPivots,
   movingAverage,
@@ -37,10 +37,10 @@ import type { CrosshairSync } from './crosshairSync';
 import { formatPrice, formatVolumeEs, makeTimeFormatter, tickMarkFormatter } from './format';
 import { PivotsPrimitive } from './pivotsPrimitive';
 import { MeasurePrimitive, type Measure } from './measurePrimitive';
-import { DrawingsPrimitive, fibExtPrice } from './drawingsPrimitive';
+import { DrawingsPrimitive, fibExtPrice, fibLevelXs } from './drawingsPrimitive';
 import { TwoYmaFill } from './twoYmaFill';
 import { RsiFill } from './rsiFill';
-import { openMaSettings, openPivotSettings, openRsiSettings, openTwoYmaSettings, openFibSettings } from '../ui/indicatorSettings';
+import { openMaSettings, openPivotSettings, openRsiSettings, openTwoYmaSettings, openFibSettings, openPositionSettings } from '../ui/indicatorSettings';
 
 // Un gráfico completo: velas, volumen, medias, medias de otra temporalidad, RSI,
 // pivots, líneas horizontales y leyenda tipo TradingView (arriba a la izquierda).
@@ -134,7 +134,9 @@ export class ChartPanel {
   private lastToolClick = 0;
   private drawPrim: DrawingsPrimitive;
   /** Extensión de Fibonacci que se está dibujando (clic, clic, clic). */
-  private fibDraft: { id: string; step: number } | null = null;
+  private fibDraft: { id: string; step: number; n: number } | null = null;
+  /** Dibujo bajo el ratón. */
+  private hoverId: string | null = null;
 
   private symbol = '';
   private info: SymbolInfo = { symbol: '', description: '', precision: 2, minMove: 0.01 };
@@ -245,6 +247,8 @@ export class ChartPanel {
       timeToX: (t) => this.timeToX(t),
       formatPrice: (p) => formatPrice(p, this.info.precision),
       formatTime: (t) => this.formatTime(t),
+      hoveredId: () => this.hoverId,
+      lastPrice: () => (this.candles.length ? this.candles[this.candles.length - 1].close : null),
     });
     this.candle.attachPrimitive(this.drawPrim);
     this.candle.attachPrimitive(this.tyFill);
@@ -275,7 +279,8 @@ export class ChartPanel {
       const { x, y } = this.local(e);
       if (Date.now() - this.lastToolClick < 700 || tools.active !== 'none') return;
       const hit = this.inMainPane(x, y) ? this.hitDrawing(x, y) : null;
-      if (hit?.d.type === 'fibext') return this.openFib(hit.d.id);
+      if (hit?.d.type === 'fibext' || hit?.d.type === 'fib') return this.openFib(hit.d.id);
+      if (hit?.d.type === 'position') return this.openPosition(hit.d.id);
       if (hit) return;
       if (x > this.chart.timeScale().width()) return; // doble clic en la escala de precios: la reajusta
       this.deps.onMaximize();
@@ -922,11 +927,18 @@ export class ChartPanel {
     this.legendEl.innerHTML = html;
   }
 
-  /** Ventana de ajustes de una extensión de Fibonacci. */
+  /** Ventana de ajustes de un Fibonacci (extensión o retroceso) o de una posición. */
   openFib(id: string) {
     const f = this.deps.drawings.items.find((x) => x.id === id);
-    if (f?.type !== 'fibext') return;
+    if (f?.type === 'position') return this.openPosition(id);
+    if (f?.type !== 'fibext' && f?.type !== 'fib') return;
     openFibSettings(f, (patch) => this.deps.drawings.update(id, patch, 0));
+  }
+
+  openPosition(id: string) {
+    const p = this.deps.drawings.items.find((x) => x.id === id);
+    if (p?.type !== 'position') return;
+    openPositionSettings(p, (patch) => this.deps.drawings.update(id, patch, 0));
   }
 
   /** Abre la ventana de configuración de un indicador (como el ⚙ de TradingView). */
@@ -1132,14 +1144,23 @@ export class ChartPanel {
       } else if (d.type === 'vline') {
         const xx = this.timeToX(d.time);
         if (xx != null) consider(d, 'line', Math.abs(xx - x));
-      } else if (d.type === 'fibext') {
+      } else if (d.type === 'position') {
+        const g = this.positionPts(d);
+        if (!g) continue;
+        consider(d, 0, Math.hypot(g.x1 - x, g.yE - y) - 3);
+        consider(d, 1, Math.hypot(g.x1 - x, g.yT - y) - 3);
+        consider(d, 2, Math.hypot(g.x1 - x, g.yS - y) - 3);
+        consider(d, 3, Math.hypot(g.x2 - x, g.yE - y) - 3);
+        const top = Math.min(g.yT, g.yS);
+        const bot = Math.max(g.yT, g.yS);
+        if (x >= Math.min(g.x1, g.x2) && x <= Math.max(g.x1, g.x2) && y >= top && y <= bot) consider(d, 'body', HIT_PX - 0.5);
+      } else if (d.type === 'fibext' || d.type === 'fib') {
         const pts = this.fibPts(d);
         if (!pts) continue;
         pts.forEach((p, k) => consider(d, k, Math.hypot(p.x - x, p.y - y) - 3));
-        if (d.trendLine) for (let k = 0; k < 2; k++) consider(d, 'body', segDist(x, y, pts[k], pts[k + 1]));
+        if (d.trendLine) for (let k = 0; k + 1 < pts.length; k++) consider(d, 'body', segDist(x, y, pts[k], pts[k + 1]));
         const W = this.chart.timeScale().width();
-        const xa = d.extend === 'left' || d.extend === 'both' ? 0 : Math.min(pts[1].x, pts[2].x);
-        const xb = d.extend === 'right' || d.extend === 'both' ? W : Math.max(pts[1].x, pts[2].x);
+        const [xa, xb] = fibLevelXs(d, pts.map((p) => p.x), W);
         if (x >= xa - 3 && x <= xb + 3) {
           for (const l of d.levels) {
             if (!l.on) continue;
@@ -1152,17 +1173,48 @@ export class ChartPanel {
     return bestD <= HIT_PX ? best : null;
   }
 
-  // Extensión de Fibonacci: clic en A, clic en B, clic en C (como en TradingView).
+  /** Coordenadas (px) de la posición: x de entrada y final, y de entrada, stop y objetivo. */
+  private positionPts(d: Position) {
+    const x1 = this.timeToX(d.entry.time);
+    const x2 = this.timeToX(d.endTime);
+    const yE = this.candle.priceToCoordinate(d.entry.price);
+    const yS = this.candle.priceToCoordinate(d.stop);
+    const yT = this.candle.priceToCoordinate(d.target);
+    if (x1 == null || x2 == null || yE == null || yS == null || yT == null) return null;
+    return { x1, x2, yE, yS, yT };
+  }
+
+  /** Posición larga/corta: un clic pone la entrada; stop y objetivo salen a una distancia razonable y se ajustan arrastrando. */
+  private addPosition(e: PointerEvent, side: 'long' | 'short') {
+    const p = this.pointAtTime(e);
+    if (!p) return;
+    const { y } = this.local(e);
+    const h = this.chart.panes()[0]?.getHeight() ?? 400;
+    const off = Math.max(20, Math.min(60, h * 0.08));
+    const up = this.candle.coordinateToPrice(y - off);
+    const down = this.candle.coordinateToPrice(y + off);
+    if (up == null || down == null) return;
+    const dUp = Math.abs(up - p.price);
+    const dDown = Math.abs(p.price - down);
+    // Riesgo 1 : beneficio 2 (objetivo al doble de distancia que el stop).
+    const stop = side === 'long' ? p.price - dDown : p.price + dUp;
+    const target = side === 'long' ? p.price + 2 * dUp : p.price - 2 * dDown;
+    const endTime = p.time + 25 * this.tfSecs();
+    this.deps.drawings.addPosition({ side, entry: p, endTime, stop: this.roundPrice(stop), target: this.roundPrice(target) });
+  }
+
+  // Fibonacci: extensión (clic en A, B y C) o retroceso (clic en A y B), como en TradingView.
   private fibMove: ((ev: PointerEvent) => void) | null = null;
 
-  private startFib(e: PointerEvent) {
+  private startFib(e: PointerEvent, kind: FibExt['type']) {
     const p = this.pointAtTime(e);
     if (!p) return;
     this.suppressMouse = true;
     const dr = this.deps.drawings;
     dr.dragging = true;
-    const f = dr.addFibExt([p, { ...p }, { ...p }], false);
-    this.fibDraft = { id: f.id, step: 1 };
+    const n = kind === 'fib' ? 2 : 3;
+    const f = dr.addFib(kind, Array.from({ length: n }, () => ({ ...p })), false);
+    this.fibDraft = { id: f.id, step: 1, n };
     this.fibMove = (ev: PointerEvent) => {
       const q = this.pointAtTime(ev);
       const draft = this.fibDraft;
@@ -1170,7 +1222,7 @@ export class ChartPanel {
       const cur = dr.items.find((x) => x.id === draft.id) as FibExt | undefined;
       if (!cur) return;
       const pts = cur.points.slice();
-      for (let k = draft.step; k < 3; k++) pts[k] = q;
+      for (let k = draft.step; k < draft.n; k++) pts[k] = q;
       dr.update(draft.id, { points: pts }, -1);
     };
     window.addEventListener('pointermove', this.fibMove, true);
@@ -1180,7 +1232,7 @@ export class ChartPanel {
     const draft = this.fibDraft;
     if (!draft) return;
     draft.step++;
-    if (draft.step < 3) return;
+    if (draft.step < draft.n) return;
     this.endFibDraft();
     this.deps.drawings.persist(draft.id, 0);
   }
@@ -1190,7 +1242,7 @@ export class ChartPanel {
     this.fibMove = null;
     this.fibDraft = null;
     this.deps.drawings.dragging = false;
-    if (tools.active === 'fibext') tools.set('none');
+    if (tools.active === 'fibext' || tools.active === 'fib') tools.set('none');
     setTimeout(() => (this.suppressMouse = false), 0);
     this.updateCursor();
   }
@@ -1219,7 +1271,7 @@ export class ChartPanel {
 
   private updateCursor(e?: { clientX: number; clientY: number }) {
     const t = tools.active;
-    if (t === 'hline' || t === 'vline' || t === 'fibext' || t === 'measure' || this.measuring === 'drawing' || this.fibDraft) {
+    if (t !== 'none' || this.measuring === 'drawing' || this.fibDraft) {
       this.chartEl.style.cursor = 'crosshair';
       return;
     }
@@ -1230,8 +1282,28 @@ export class ChartPanel {
     if (e) {
       const { x, y } = this.local(e);
       const hit = this.inMainPane(x, y) ? this.hitDrawing(x, y) : null;
-      this.chartEl.style.cursor = !hit ? '' : hit.d.type === 'hline' ? 'ns-resize' : hit.d.type === 'vline' ? 'ew-resize' : 'move';
-    } else this.chartEl.style.cursor = '';
+      this.setHover(hit?.d.id ?? null);
+      this.chartEl.style.cursor = !hit
+        ? ''
+        : hit.d.type === 'hline'
+          ? 'ns-resize'
+          : hit.d.type === 'vline' || (hit.d.type === 'position' && hit.part === 3)
+            ? 'ew-resize'
+            : hit.d.type === 'position' && (hit.part === 1 || hit.part === 2)
+              ? 'ns-resize'
+              : typeof hit.part === 'number'
+                ? 'pointer'
+                : 'move';
+    } else {
+      this.chartEl.style.cursor = '';
+      this.setHover(null);
+    }
+  }
+
+  private setHover(id: string | null) {
+    if (this.hoverId === id) return;
+    this.hoverId = id;
+    this.drawPrim.update();
   }
 
   private installPointerHandlers() {
@@ -1266,9 +1338,17 @@ export class ChartPanel {
           this.fibClick();
           return;
         }
-        if (tools.active === 'fibext') {
+        if (tools.active === 'fibext' || tools.active === 'fib') {
           stop(e);
-          this.startFib(e);
+          this.startFib(e, tools.active);
+          return;
+        }
+        if (tools.active === 'long' || tools.active === 'short') {
+          stop(e);
+          this.suppressMouse = true;
+          this.addPosition(e, tools.active);
+          tools.set('none');
+          setTimeout(() => (this.suppressMouse = false), 400);
           return;
         }
         if (tools.active === 'hline' || tools.active === 'vline') {
@@ -1396,7 +1476,33 @@ export class ChartPanel {
       } else if (orig.type === 'vline') {
         const t = this.xToTime(x);
         if (t != null) d.update(id, { time: t }, -1);
-      } else if (orig.type === 'fibext') {
+      } else if (orig.type === 'position') {
+        const q = this.pointAtTime(ev);
+        const p = this.candle.coordinateToPrice(y);
+        if (p == null) return;
+        const price = this.roundPrice(p);
+        if (hit.part === 0 && q) d.update(id, { entry: { time: q.time, price } }, -1);
+        else if (hit.part === 1) d.update(id, { target: price }, -1);
+        else if (hit.part === 2) d.update(id, { stop: price }, -1);
+        else if (hit.part === 3) {
+          const t = this.xToTime(x);
+          if (t != null && t > orig.entry.time) d.update(id, { endTime: t }, -1);
+        } else {
+          const ts = this.chart.timeScale();
+          const l0 = ts.coordinateToLogical(start.x);
+          const l1 = ts.coordinateToLogical(x);
+          const p0 = this.candle.coordinateToPrice(start.y);
+          if (l0 == null || l1 == null || p0 == null) return;
+          const dt = Math.round(l1 - l0) * this.tfSecs();
+          const dp = p - p0;
+          const r = (v: number) => this.roundPrice(v + dp);
+          d.update(
+            id,
+            { entry: { time: orig.entry.time + dt, price: r(orig.entry.price) }, endTime: orig.endTime + dt, stop: r(orig.stop), target: r(orig.target) },
+            -1,
+          );
+        }
+      } else if (orig.type === 'fibext' || orig.type === 'fib') {
         if (typeof hit.part === 'number') {
           const q = this.pointAtTime(ev);
           if (!q) return;

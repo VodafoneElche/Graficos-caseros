@@ -1,6 +1,6 @@
 import { api } from '../api';
-import { fibExtDefaults } from './toolDefaults';
-import type { Drawing, FibExt, HLine, VLine } from './types';
+import { fibDefaults, fibExtDefaults, positionDefaults } from './toolDefaults';
+import type { Drawing, FibExt, HLine, Position, VLine } from './types';
 
 // Dibujos del símbolo activo: líneas horizontales y verticales y extensiones de Fibonacci.
 // Una sola lista compartida por los 6 gráficos: si mueves una línea en uno, se mueve en todos.
@@ -85,14 +85,19 @@ export class DrawingsStore {
     return this.add({ id: newId(), symbol: this.symbol, type: 'vline', time, color: this.lastColor, width: this.lastWidth, style: 0 }) as VLine;
   }
 
-  /** Crea una extensión de Fibonacci (sin guardar hasta que se termine de dibujar). */
-  addFibExt(points: FibExt['points'], persist: boolean): FibExt {
-    const d: FibExt = { id: newId(), symbol: this.symbol, type: 'fibext', points, ...fibExtDefaults() };
+  /** Crea una extensión ('fibext') o un retroceso ('fib') de Fibonacci (sin guardar hasta que se termine de dibujar). */
+  addFib(kind: FibExt['type'], points: FibExt['points'], persist: boolean): FibExt {
+    const defs = kind === 'fib' ? fibDefaults() : fibExtDefaults();
+    const d: FibExt = { id: newId(), symbol: this.symbol, type: kind, points, ...defs };
     this.items = [...this.items, d];
     this.selectedId = d.id;
     this.emit();
     if (persist) this.persist(d.id, 0);
     return d;
+  }
+
+  addPosition(p: Pick<Position, 'side' | 'entry' | 'endTime' | 'stop' | 'target'>): Position {
+    return this.add({ id: newId(), symbol: this.symbol, type: 'position', ...positionDefaults(), ...p }) as Position;
   }
 
   update(id: string, patch: Partial<Drawing>, persistDelay = 400) {
