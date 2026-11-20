@@ -24,7 +24,7 @@ export class Watchlist {
       <div class="wl-title">Lista de seguimiento</div>
       <div class="wl-row wl-cols"><span class="wl-h-sym">Símbolo</span><span class="wl-h" data-k="last" title="Arrastra para cambiar el orden de las columnas">Último<i class="wl-rs" data-k="last"></i></span><span class="wl-h" data-k="ch" title="Arrastra para cambiar el orden de las columnas">Cambio<i class="wl-rs" data-k="ch"></i></span><span class="wl-h" data-k="pct" title="Arrastra para cambiar el orden de las columnas">%<i class="wl-rs" data-k="pct"></i></span><span class="wl-h-end"></span></div>
       <div class="wl-list"></div>
-      <form class="wl-add"><input placeholder="Añadir símbolo (p. ej. ETHUSDT)" spellcheck="false" autocapitalize="characters"><button>+</button></form>
+      <form class="wl-add"><input placeholder="Añadir símbolo (p. ej. ETHUSDT, AAPL)" spellcheck="false" autocapitalize="characters"><button>+</button></form>
       <div class="wl-msg dim"></div>`;
     this.listEl = root.querySelector('.wl-list')!;
     this.installColumns();
@@ -47,7 +47,8 @@ export class Watchlist {
         input.value = '';
         msg.textContent = '';
       } catch (err) {
-        msg.textContent = `No encuentro ${s} en ${this.hub.provider.label}`;
+        const src = this.hub.provider.sourceLabel?.(s) ?? this.hub.provider.label;
+        msg.textContent = err instanceof Error && /Faltan/.test(err.message) ? err.message : `No encuentro ${s} en ${src}`;
       }
     };
   }
@@ -259,7 +260,7 @@ export class Watchlist {
         const r = row;
         if (!supported) {
           r.classList.add('wl-pending');
-          r.title = 'Sin datos todavía: oro, plata y acciones llegan en la fase 4';
+          r.title = 'No sé de qué fuente sacar los datos de este símbolo';
           r.querySelector('.wl-last')!.textContent = '—';
           this.unsubs.set(s, () => {});
           row.classList.toggle('active', s === this.active);
@@ -273,6 +274,7 @@ export class Watchlist {
           .catch((e) => {
             // Sólo se tacha si el proveedor dice que el símbolo no existe (no por un fallo de red).
             if (e instanceof Error && /no encontrado|Invalid symbol|Binance:/i.test(e.message)) r.classList.add('wl-bad');
+            if (e instanceof Error && /Faltan/.test(e.message)) r.title = e.message;
           });
         this.unsubs.set(
           s,

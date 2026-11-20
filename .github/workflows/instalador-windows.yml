@@ -5,7 +5,7 @@ name: Instalador Windows
 
 on:
   push:
-    branches: [main, fase-1-prototipo, claude/project-thread-nmpz7o]
+    branches: [main, fase-1-prototipo, claude/project-thread-nmpz7o, claude/project-thread-jsrbm1]
     paths-ignore: ["**.md", "iniciar.*"]
   workflow_dispatch:
 

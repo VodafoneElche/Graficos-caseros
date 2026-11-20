@@ -1,3 +1,4 @@
+import type { MarketSession } from '../core/session';
 import type { Candle, TfId, Unsubscribe } from '../core/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -41,6 +42,14 @@ export interface DayTicker {
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
+/**
+ * Vela en tiempo real. Con `merge: true` es sólo una operación (o un precio) suelta:
+ * se SUMA a la vela que ya hay con esa hora (máximo, mínimo, cierre y volumen),
+ * en vez de sustituirla. Así los proveedores que dan operaciones (Alpaca) o precios
+ * (Capital.com) no tienen que conocer la vela completa.
+ */
+export type LiveCandle = Candle & { merge?: boolean };
+
 export interface DataProvider {
   readonly id: string;
   readonly label: string;
@@ -65,7 +74,21 @@ export interface DataProvider {
   fetchCandles(symbol: string, tf: TfId, opts: { limit: number; end?: number }): Promise<Candle[]>;
 
   /** Velas en tiempo real (la vela actual se actualiza muchas veces). */
-  subscribeCandles(symbol: string, tf: TfId, cb: (c: Candle) => void): Unsubscribe;
+  subscribeCandles(symbol: string, tf: TfId, cb: (c: LiveCandle) => void): Unsubscribe;
+
+  /** Horario del mercado del símbolo (acciones, forex). Sin él: 24/7 en UTC, como cripto. */
+  sessionFor?(symbol: string): MarketSession | null;
+
+  /** Nombre de la fuente de un símbolo concreto (para la leyenda del gráfico). */
+  sourceLabel?(symbol: string): string;
+
+  /** Proveedor combinado: temporalidades nativas, velas por petición y reconexión de la fuente de UN símbolo. */
+  nativeFor?(symbol: string): TfId[];
+  maxBarsFor?(symbol: string): number;
+  onSymbolReconnect?(symbol: string, cb: () => void): Unsubscribe;
+
+  /** Estado del tiempo real de la fuente de un símbolo concreto. */
+  onSymbolStatus?(symbol: string, cb: (s: ConnectionStatus, msg?: string) => void): Unsubscribe;
 
   /** Último precio y apertura del día, para la watchlist. */
   subscribeDayTicker(symbol: string, cb: (t: DayTicker) => void): Unsubscribe;

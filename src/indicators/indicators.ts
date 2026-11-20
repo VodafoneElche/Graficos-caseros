@@ -1,4 +1,5 @@
-import { indexAtOrBefore, nextBucketStart, TIMEFRAMES } from '../core/timeframes';
+import type { MarketSession } from '../core/session';
+import { bucketStart, indexAtOrBefore, nextBucketStart, TIMEFRAMES } from '../core/timeframes';
 import type { Candle, MaType, PivotType, PriceSource, SmoothingType, TfId } from '../core/types';
 
 // Indicadores. Las fórmulas siguen las de TradingView (Pine Script):
@@ -218,18 +219,21 @@ export function rsi(closes: number[], period = 14): Values {
  *    valor de la vela grande que la contiene (en la vela actual, el valor en curso).
  *  - Si es menor: cada vela toma el valor de la última vela pequeña ya cerrada dentro de ella.
  */
-export function projectSeries(chartCandles: Candle[], chartTf: TfId, src: Candle[], srcTf: TfId, srcValues: Values, waitClose = false): Values {
+export function projectSeries(chartCandles: Candle[], chartTf: TfId, src: Candle[], srcTf: TfId, srcValues: Values, waitClose = false, sess?: MarketSession | null): Values {
   const out: Values = new Array(chartCandles.length).fill(null);
   if (!src.length) return out;
   const higher = TIMEFRAMES[srcTf].seconds >= TIMEFRAMES[chartTf].seconds;
+  // Con horario de mercado, las velas de un día o más llevan su FECHA (no la hora real):
+  // para buscarlas se convierte el instante a la vela de esa temporalidad.
+  const key = (t: number) => (sess && TIMEFRAMES[srcTf].seconds >= 86400 ? bucketStart(srcTf, t, sess) : t);
   if (higher && waitClose) {
     // "Espere al cierre": cada vela usa el valor de la última vela grande YA CERRADA
     // al terminar esa vela del gráfico (no se redibuja con la vela grande en curso).
     const now = Date.now() / 1000;
     for (let i = 0; i < chartCandles.length; i++) {
-      const chartEnd = Math.min(nextBucketStart(chartTf, chartCandles[i].time), now);
-      let j = indexAtOrBefore(src.length, (k) => src[k].time, chartEnd - 1);
-      if (j >= 0 && nextBucketStart(srcTf, src[j].time) > chartEnd) j--;
+      const chartEnd = Math.min(nextBucketStart(chartTf, chartCandles[i].time, sess), now);
+      let j = indexAtOrBefore(src.length, (k) => src[k].time, key(chartEnd - 1));
+      if (j >= 0 && nextBucketStart(srcTf, src[j].time, sess) > chartEnd) j--;
       if (j >= 0) out[i] = srcValues[j];
     }
     return out;
@@ -240,14 +244,14 @@ export function projectSeries(chartCandles: Candle[], chartTf: TfId, src: Candle
     const t = chartCandles[i].time;
     let j: number;
     if (higher) {
-      j = indexAtOrBefore(src.length, srcTime, t);
+      j = indexAtOrBefore(src.length, srcTime, key(t));
     } else if (i === n - 1) {
       j = src.length - 1;
     } else {
       // Última vela pequeña que termina antes de que termine la vela del gráfico.
-      const chartEnd = nextBucketStart(chartTf, t);
-      j = indexAtOrBefore(src.length, srcTime, chartEnd - 1);
-      if (j >= 0 && nextBucketStart(srcTf, src[j].time) > chartEnd) j--;
+      const chartEnd = nextBucketStart(chartTf, t, sess);
+      j = indexAtOrBefore(src.length, srcTime, key(chartEnd - 1));
+      if (j >= 0 && nextBucketStart(srcTf, src[j].time, sess) > chartEnd) j--;
     }
     if (j >= 0) out[i] = srcValues[j];
   }
@@ -333,17 +337,25 @@ export function pivotLevels(type: PivotType, h: number, l: number, c: number, o:
 }
 
 /** Calcula los pivots de los últimos `maxPeriods` periodos (el actual + los anteriores). */
-export function buildPivots(chartCandles: Candle[], htf: Candle[], maxPeriods = 15, type: PivotType = 'Traditional'): PivotPeriod[] {
+export function buildPivots(
+  chartCandles: Candle[],
+  htf: Candle[],
+  maxPeriods = 15,
+  type: PivotType = 'Traditional',
+  /** Con horario de mercado: convierte la hora de una vela del gráfico en la de su periodo (día, semana...). */
+  periodOf?: (t: number) => number,
+): PivotPeriod[] {
   const out: PivotPeriod[] = [];
   const n = chartCandles.length;
   if (!n || htf.length < 2) return out;
-  const ct = (i: number) => chartCandles[i].time;
+  const keys = periodOf ? chartCandles.map((c) => periodOf(c.time)) : null;
+  const ct = keys ? (i: number) => keys[i] : (i: number) => chartCandles[i].time;
   for (let k = htf.length - 1; k >= 1 && out.length < maxPeriods; k--) {
     const start = htf[k].time;
     const end = k + 1 < htf.length ? htf[k + 1].time : Infinity;
     const i2 = indexAtOrBefore(n, ct, end - 1);
     if (i2 < 0) break;
-    if (chartCandles[i2].time < start) continue; // periodo sin velas en el gráfico
+    if (ct(i2) < start) continue; // periodo sin velas en el gráfico
     let i1 = indexAtOrBefore(n, ct, start - 1) + 1;
     const prev = htf[k - 1];
     out.push({ i1, i2, levels: pivotLevels(type, prev.high, prev.low, prev.close, prev.open, htf[k].open) });

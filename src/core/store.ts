@@ -1,4 +1,5 @@
-import type { DataProvider } from '../providers/provider';
+import type { DataProvider, LiveCandle } from '../providers/provider';
+import type { MarketSession } from './session';
 import { aggregate, bucketStart, planTimeframe, TIMEFRAMES, upsertCandle } from './timeframes';
 import type { Candle, TfId, Unsubscribe } from './types';
 
@@ -27,11 +28,15 @@ export class SeriesStore {
   private loadPromise: Promise<void> | null = null;
   private unsubLive: Unsubscribe | null = null;
   private unsubReconnect: Unsubscribe | null = null;
-  private queued: Candle[] = [];
+  private queued: LiveCandle[] = [];
   /** Velas base del cubo actual (sólo para temporalidades agregadas). */
   private bucketBase = new Map<number, Candle>();
   private bucketStartTime = -1;
   private idleTimer: number | null = null;
+  /** Horario del mercado (acciones, forex) o null (cripto, 24/7 en UTC). */
+  readonly sess: MarketSession | null;
+  /** Máximo de velas por petición de la fuente de este símbolo. */
+  private readonly maxBars: number;
 
   constructor(
     private provider: DataProvider,
@@ -39,9 +44,11 @@ export class SeriesStore {
     readonly tf: TfId,
     private onDispose: () => void,
   ) {
-    const plan = planTimeframe(provider.nativeTimeframes, tf);
+    const plan = planTimeframe(provider.nativeFor?.(symbol) ?? provider.nativeTimeframes, tf);
+    this.maxBars = provider.maxBarsFor?.(symbol) ?? provider.maxBarsPerRequest;
     this.base = plan.base;
     this.aggregated = plan.aggregated;
+    this.sess = provider.sessionFor?.(symbol) ?? null;
   }
 
   /** Cuántas velas base forman una de la temporalidad pedida (aprox.). */
@@ -51,8 +58,9 @@ export class SeriesStore {
 
   private maxPages(): number {
     // 45s sale de velas de 1s: 1000 por página = 22 velas de 45s. Pedimos más páginas.
-    if (this.base === '1s') return 15;
-    return Math.min(4, Math.ceil((TARGET_BARS * this.factor()) / this.provider.maxBarsPerRequest));
+    // (Con fuentes que dan 2.000 o más por página, como Alpaca, bastan 3.)
+    if (this.base === '1s') return this.maxBars >= 2000 ? 3 : 15;
+    return Math.min(4, Math.ceil((TARGET_BARS * this.factor()) / this.maxBars));
   }
 
   subscribe(fn: Listener): Unsubscribe {
@@ -81,7 +89,9 @@ export class SeriesStore {
       if (!this.loaded) this.queued.push(c);
       else this.applyLive(c);
     });
-    this.unsubReconnect = this.provider.onReconnect(() => this.resync());
+    this.unsubReconnect = this.provider.onSymbolReconnect
+      ? this.provider.onSymbolReconnect(this.symbol, () => this.resync())
+      : this.provider.onReconnect(() => this.resync());
     this.load();
   }
 
@@ -116,7 +126,7 @@ export class SeriesStore {
     let cursor = end;
     for (let i = 0; i < pages; i++) {
       const page = await this.provider.fetchCandles(this.symbol, this.base, {
-        limit: this.provider.maxBarsPerRequest,
+        limit: this.maxBars,
         end: cursor,
       });
       if (!page.length) {
@@ -125,7 +135,7 @@ export class SeriesStore {
       }
       chunks.unshift(page);
       cursor = page[0].time;
-      if (page.length < this.provider.maxBarsPerRequest) {
+      if (page.length < this.maxBars) {
         this.noMoreHistory = true;
         break;
       }
@@ -136,7 +146,7 @@ export class SeriesStore {
   /** Convierte velas base en velas de la temporalidad del almacén. */
   private toTarget(base: Candle[], dropPartialFirst: boolean): Candle[] {
     if (!this.aggregated) return base;
-    let bars = aggregate(base, this.tf);
+    let bars = aggregate(base, this.tf, this.sess);
     if (dropPartialFirst && bars.length && base.length && bars[0].time !== base[0].time && !this.noMoreHistory) {
       bars = bars.slice(1); // el primer cubo está incompleto
     }
@@ -145,7 +155,7 @@ export class SeriesStore {
 
   private rememberLastBucket(base: Candle[]) {
     if (!this.aggregated || !base.length) return;
-    const last = bucketStart(this.tf, base[base.length - 1].time);
+    const last = bucketStart(this.tf, base[base.length - 1].time, this.sess);
     this.bucketStartTime = last;
     this.bucketBase.clear();
     for (let i = base.length - 1; i >= 0 && base[i].time >= last; i--) this.bucketBase.set(base[i].time, base[i]);
@@ -158,18 +168,35 @@ export class SeriesStore {
     this.rememberLastBucket(base);
   }
 
-  private applyLive(c: Candle, silent = false) {
-    let bar = c;
+  /** Una operación suelta (merge) se suma a la vela que ya teníamos con la misma hora. */
+  private static mergeInto(prev: Candle | undefined, c: LiveCandle): Candle {
+    const { merge: _m, ...plain } = c;
+    if (!c.merge || !prev) return plain;
+    return {
+      time: prev.time,
+      open: prev.open,
+      high: Math.max(prev.high, c.high),
+      low: Math.min(prev.low, c.low),
+      close: c.close,
+      volume: prev.volume + c.volume,
+    };
+  }
+
+  private applyLive(c: LiveCandle, silent = false) {
+    let bar: Candle;
     if (this.aggregated) {
-      const b = bucketStart(this.tf, c.time);
+      const b = bucketStart(this.tf, c.time, this.sess);
       if (b !== this.bucketStartTime) {
         if (b < this.bucketStartTime) return; // dato viejo
         this.bucketStartTime = b;
         this.bucketBase.clear();
       }
-      this.bucketBase.set(c.time, c);
+      this.bucketBase.set(c.time, SeriesStore.mergeInto(this.bucketBase.get(c.time), c));
       const parts = [...this.bucketBase.values()].sort((x, y) => x.time - y.time);
-      bar = aggregate(parts, this.tf)[0];
+      bar = aggregate(parts, this.tf, this.sess)[0];
+    } else {
+      const last = this.candles[this.candles.length - 1];
+      bar = SeriesStore.mergeInto(last && last.time === c.time ? last : undefined, c);
     }
     const n = this.candles.length;
     if (n && bar.time < this.candles[n - 1].time) return; // nunca reescribimos el pasado con datos en vivo
