@@ -1,3 +1,4 @@
+import type { MarketSession } from './session';
 import type { Candle, TfId } from './types';
 
 // Definición de las temporalidades y cálculo de "cubos" (a qué vela pertenece un instante).
@@ -44,8 +45,26 @@ export function tfSeconds(tf: TfId): number {
   return TIMEFRAMES[tf].seconds;
 }
 
-/** Inicio (segundos UTC) de la vela de temporalidad `tf` que contiene el instante `t`. */
-export function bucketStart(tf: TfId, t: number): number {
+/**
+ * Inicio (segundos UTC) de la vela de temporalidad `tf` que contiene el instante `t`.
+ * Con `sess` (acciones, forex): velas cortadas según el horario de ese mercado (ver core/session.ts).
+ */
+export function bucketStart(tf: TfId, t: number, sess?: MarketSession | null): number {
+  if (sess) return sessionBucketStart(tf, t, sess);
+  return utcBucketStart(tf, t);
+}
+
+function sessionBucketStart(tf: TfId, t: number, sess: MarketSession): number {
+  const def = TIMEFRAMES[tf];
+  if (def.kind === 'fixed' && def.seconds < D) {
+    const open = sess.dateOpen(sess.date(t));
+    if (t < open) return Math.floor(t / def.seconds) * def.seconds;
+    return open + Math.floor((t - open) / def.seconds) * def.seconds;
+  }
+  return utcBucketStart(tf, sess.date(t));
+}
+
+function utcBucketStart(tf: TfId, t: number): number {
   const def = TIMEFRAMES[tf];
   switch (def.kind) {
     case 'fixed':
@@ -67,9 +86,22 @@ export function bucketStart(tf: TfId, t: number): number {
   }
 }
 
-/** Inicio de la vela siguiente. */
-export function nextBucketStart(tf: TfId, t: number): number {
-  const s = bucketStart(tf, t);
+/**
+ * Inicio de la vela siguiente. Con `sess` devuelve el INSTANTE REAL en que termina
+ * la vela (p. ej. a las 16:00 de Nueva York para la última vela del día de una acción).
+ */
+export function nextBucketStart(tf: TfId, t: number, sess?: MarketSession | null): number {
+  if (sess) {
+    const def = TIMEFRAMES[tf];
+    const start = sessionBucketStart(tf, t, sess);
+    if (def.kind === 'fixed' && def.seconds < D) return Math.min(start + def.seconds, sess.close(start));
+    return sess.dateOpen(utcNextBucketStart(tf, start));
+  }
+  return utcNextBucketStart(tf, t);
+}
+
+function utcNextBucketStart(tf: TfId, t: number): number {
+  const s = utcBucketStart(tf, t);
   const def = TIMEFRAMES[tf];
   switch (def.kind) {
     case 'fixed':
@@ -110,11 +142,11 @@ export function planTimeframe(native: TfId[], tf: TfId): { base: TfId; aggregate
 }
 
 /** Agrupa velas pequeñas (ordenadas) en velas de temporalidad `tf`. */
-export function aggregate(base: Candle[], tf: TfId): Candle[] {
+export function aggregate(base: Candle[], tf: TfId, sess?: MarketSession | null): Candle[] {
   const out: Candle[] = [];
   let cur: Candle | null = null;
   for (const c of base) {
-    const b = bucketStart(tf, c.time);
+    const b = bucketStart(tf, c.time, sess);
     if (!cur || cur.time !== b) {
       cur = { time: b, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
       out.push(cur);

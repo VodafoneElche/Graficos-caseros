@@ -45,7 +45,7 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 | Extensión de Fibonacci | Botón de Fibonacci y 3 clics: inicio, final y retroceso. Doble clic en ella para cambiar niveles y colores. Se mueve arrastrándola y cada punto por separado. |
 | Retroceso de Fibonacci | Botón de Fibonacci con rayas (o Alt+F) y 2 clics: inicio y final. Doble clic para niveles y colores. |
 | Posición larga / corta | Botón verde-rojo (larga) o rojo-verde (corta) y un clic en el precio de entrada. Arrastra los puntos azules para mover stop, objetivo, entrada y el final de la caja; arrastra la caja para moverla entera. Al pasar el ratón por encima se ven objetivo, stop, cantidad y ratio riesgo/beneficio. Doble clic para tamaño de cuenta, riesgo y colores. |
-| Cambiar de símbolo | Clic en la lista de seguimiento de la derecha. Cambian los 6 gráficos a la vez. Los símbolos en gris (oro, plata, acciones) tendrán datos en la fase 4. |
+| Cambiar de símbolo | Clic en la lista de seguimiento de la derecha. Cambian los 6 gráficos a la vez. Para acciones, oro, plata y forex hay que pegar antes las claves (ver «Acciones, oro, plata y forex»). |
 | Añadir un símbolo | Escribe el par (p. ej. `ETHUSDT`) abajo en la lista y pulsa **+**. Para quitarlo, pasa el ratón por encima y pulsa ✕. |
 | Cuadrícula / gráfico grande | **Doble clic** en un gráfico lo pone en grande; doble clic otra vez vuelve a los 6. También **Uno grande** (abre el gráfico seleccionado). En grande, **Tab** pasa al siguiente gráfico y **Mayús+Tab** al anterior. |
 | Cambiar la temporalidad de un gráfico | Haz clic en el gráfico (queda con borde azul) y pulsa la temporalidad en la barra de arriba (45s, 1m, 2m, 5m, 10m, 15m, 30m, 1h, 3h, 4h, D, S, M). |
@@ -69,6 +69,33 @@ Las líneas, la watchlist y la configuración de los gráficos se guardan en el 
 El punto de color de arriba a la derecha indica la conexión en tiempo real con Binance: verde = conectado, amarillo = conectando, rojo = sin conexión (reintenta solo).
 
 ---
+
+## Acciones, oro, plata y forex (fase 4)
+
+Cada símbolo saca sus datos de una fuente distinta, sin que tengas que elegir nada:
+
+| Mercado | Fuente | Coste | Qué hace falta |
+|---|---|---|---|
+| Cripto (BTCUSDT…) | Binance | Gratis | Nada |
+| Acciones de Nasdaq y NYSE (AAPL, MSTR…) | Alpaca | Gratis (plan Basic) | Cuenta «Paper» y sus claves |
+| Oro (XAUUSD), plata (XAGUSD) y divisas (EURUSD…) | Capital.com | Gratis (cuenta demo) | Cuenta demo, 2FA y clave API |
+
+OANDA no deja abrir cuentas demo desde España, por eso el oro y el forex vienen de Capital.com.
+
+### Dónde se pegan las claves
+
+Botón **🔑** de la barra de arriba (a la derecha, muestra el nombre de la fuente del símbolo que estás viendo) → ventana **Fuentes de datos**. Ahí están los pasos para crear cada cuenta, las casillas para pegar las claves y un botón **Probar**. Al cerrar la ventana la app se recarga sola.
+
+Las claves se guardan sólo en este ordenador (en la base de datos de la app), nunca en el código. También se pueden poner como variables de entorno: `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY`, `ALPACA_PLAN` (`basic` o `sip`), `CAPITAL_API_KEY`, `CAPITAL_EMAIL`, `CAPITAL_PASSWORD`, `CAPITAL_DEMO` (`1` o `0`).
+
+### Diferencias esperables con TradingView
+
+- **Acciones, plan gratuito de Alpaca.** Las velas de hace más de 15 minutos son de todas las bolsas (precio y volumen completos). Los últimos 15 minutos y el tiempo real vienen sólo de la bolsa IEX: el precio es casi igual, pero el **volumen reciente sale mucho más bajo** (IEX es ≈2-3 % del total). El «NASDAQ por Cboe One» de TradingView gratis también es volumen parcial (Cboe), así que los volúmenes no coincidirán. Para tenerlo todo completo y en tiempo real: plan Algo Trader Plus de Alpaca, 99 $/mes (se elige «De pago» en la ventana).
+- **Horario de las acciones:** sólo sesión regular, 9:30-16:00 de Nueva York (15:30-22:00 en España, salvo las semanas de cambio de hora), como TradingView por defecto. La vela de 1h empieza a las 9:30; la de 4h a las 9:30 y a las 13:30.
+- **Oro, plata y forex:** precio «bid» de Capital.com. Para comparar con la misma fuente usa en TradingView `CAPITALCOM:GOLD`, `CAPITALCOM:SILVER` o `CAPITALCOM:EURUSD`; frente a `OANDA:XAUUSD` puede haber unos céntimos. No hay volumen. El día empieza a las 17:00 de Nueva York (forex) o a las 18:00 (oro y plata).
+- **45 segundos:** en acciones se construye con las operaciones de IEX; en oro y forex no hay histórico de segundos y la vela se va formando mientras la app está abierta.
+- **Lista de seguimiento:** acciones, oro y forex se actualizan cada 5 segundos. El «Cambio» de las acciones es frente al cierre anterior.
+- Las **alertas** (fase 2) todavía sólo vigilan cripto de Binance.
 
 ## Aspecto
 
@@ -115,7 +142,7 @@ Las fórmulas de EMA, SMA, RSI y pivots son las mismas que usa TradingView, así
 
 - El gráfico de **45s** sale de velas de 1 segundo; al abrirlo carga unas 5 horas de historia (más si te desplazas a la izquierda).
 - Todavía **no hay usuario y contraseña**: por eso el servidor sólo acepta conexiones desde el mismo ordenador. El acceso desde el móvil y para toda la familia llega en la fase 5.
-- Líneas de tendencia en la fase 3; oro, plata y acciones en la fase 4. Las alertas (fase 2) de momento sólo funcionan con cripto de Binance.
+- Líneas de tendencia en la fase 3. Las alertas (fase 2) de momento sólo funcionan con cripto de Binance.
 
 ---
 
@@ -147,7 +174,7 @@ Comandos (requieren `npm install` la primera vez):
 - `npm run build` → comprueba tipos y vuelve a generar `dist/`.
 - `npm start` → arranca el servidor.
 
-Para añadir un proveedor nuevo (OANDA, Alpaca, Finnhub…): crear una clase en `src/providers/` que cumpla `DataProvider` y elegirla en `providers/index.ts`. Sólo tiene que dar sus temporalidades nativas; el resto se construye solo.
+Proveedores: `src/providers/composite.ts` reparte cada símbolo a su fuente (Binance, Alpaca, Capital.com). Para cambiar o añadir una fuente: crear una clase en `src/providers/` que cumpla `DataProvider` y enrutarla en `composite.ts`. Sólo tiene que dar sus temporalidades nativas; el resto se construye solo. Los horarios de mercado (velas de acciones y forex cortadas como TradingView) están en `src/core/session.ts`. Las claves y las conexiones con Alpaca y Capital.com viven en el servidor (`server/marketdata.mjs`); el navegador sólo ve `/proxy/alpaca`, `/proxy/capital`, `/stream/alpaca` y `/stream/capital`.
 
 Variables de entorno del servidor: `PORT` (3000), `HOST` (127.0.0.1), `DATA_DIR` (`datos`), `OPEN_BROWSER`. Las claves de API de fases futuras irán también en variables de entorno, nunca en el código.
 

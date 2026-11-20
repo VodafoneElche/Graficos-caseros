@@ -6,6 +6,8 @@
 //   - Guarda dibujos y ajustes en SQLite (carpeta datos/graficos.db).
 //   - Hace de intermediario con la API pública de Binance para el histórico de velas.
 //   - Vigila las alertas de precio y RSI y avisa por Telegram (server/alerts.mjs).
+//   - Datos de acciones (Alpaca) y oro/plata/forex (Capital.com) con las claves
+//     que se pegan en la app (server/marketdata.mjs).
 //
 // Variables de entorno opcionales:
 //   PORT=3000            puerto
@@ -24,6 +26,7 @@ import { exec } from 'node:child_process';
 
 import { pathToFileURL } from 'node:url';
 import { createAlertEngine } from './alerts.mjs';
+import { createMarketData } from './marketdata.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const USER = 'familia'; // fase 5: cada usuario tendrá el suyo
@@ -74,6 +77,7 @@ export async function startServer(opts = {}) {
   `);
 
   const alerts = createAlertEngine({ db, offline: !!opts.offline, log: opts.log || console.log });
+  const market = createMarketData({ db, log: opts.log || console.log });
 
   const q = {
     listDrawings: db.prepare('SELECT data FROM drawings WHERE user = ? AND symbol = ? ORDER BY created_at'),
@@ -132,6 +136,7 @@ export async function startServer(opts = {}) {
     if (parts[1] === 'health') return send(res, 200, { ok: true });
 
     if (await alerts.handleApi(req, res, url, parts, USER, { send, readJson })) return;
+    if (await market.handleApi(req, res, url, parts, { send, readJson })) return;
 
     if (parts[1] === 'drawings') {
       if (req.method === 'GET' && parts.length === 2) {
@@ -246,6 +251,9 @@ export async function startServer(opts = {}) {
     try {
       if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
       if (url.pathname.startsWith('/proxy/binance/')) return await handleBinance(req, res, url);
+      if (url.pathname.startsWith('/proxy/alpaca/')) return await market.handleAlpacaProxy(req, res, url, send);
+      if (url.pathname.startsWith('/proxy/capital/')) return await market.handleCapitalProxy(req, res, url, send);
+      if (url.pathname === '/stream/alpaca' || url.pathname === '/stream/capital') return market.handleStream(req, res, url);
       return serveStatic(req, res, url);
     } catch (e) {
       console.error(e);
@@ -263,6 +271,7 @@ export async function startServer(opts = {}) {
     alerts,
     close() {
       alerts.close();
+      market.close();
       server.closeAllConnections?.();
       server.close();
       try {

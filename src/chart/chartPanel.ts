@@ -576,6 +576,11 @@ export class ChartPanel {
     this.store = null;
   }
 
+  /** Horario del mercado del símbolo (acciones, forex) o null para cripto. */
+  private sess() {
+    return this.deps.hub.provider.sessionFor?.(this.symbol) ?? null;
+  }
+
   private pivotTf(): TfId {
     const t = this.cfg.pivotCfg?.tf ?? 'Auto';
     return t === 'Auto' ? pivotTfFor(this.cfg.tf) : t;
@@ -690,7 +695,7 @@ export class ChartPanel {
       const st = this.mtfStores.get(rc.tf);
       if (st?.loaded) {
         const r = this.rsiOn(st.candles);
-        const proj = (v: Values) => projectSeries(cs, this.cfg.tf, st.candles, rc.tf!, v, rc.waitClose);
+        const proj = (v: Values) => projectSeries(cs, this.cfg.tf, st.candles, rc.tf!, v, rc.waitClose, this.sess());
         this.rsiValues = proj(r.rsi);
         this.rsiMaValues = proj(r.ma);
         this.rsiBbValues = r.bb.map(proj);
@@ -705,7 +710,7 @@ export class ChartPanel {
       }
       const r = this.maOn(m, st.candles);
       const off = m.offset || 0;
-      const proj = (v: Values) => shift(projectSeries(cs, this.cfg.tf, st.candles, m.tf!, v, m.waitClose !== false), 0);
+      const proj = (v: Values) => shift(projectSeries(cs, this.cfg.tf, st.candles, m.tf!, v, m.waitClose !== false, this.sess()), 0);
       this.maValues.set(m.id, proj(shift(r.main, off)));
       this.smoothValues.set(
         m.id,
@@ -721,7 +726,7 @@ export class ChartPanel {
         ds.candles.map((c) => c.close),
         730,
       );
-      const proj = projectSeries(cs, this.cfg.tf, ds.candles, '1D', ma, false);
+      const proj = projectSeries(cs, this.cfg.tf, ds.candles, '1D', ma, false, this.sess());
       this.tyValues = { ma: proj, x5: proj.map((v) => (v == null ? null : v * 5)) };
     } else this.tyValues = { ma: [], x5: [] };
   }
@@ -844,7 +849,11 @@ export class ChartPanel {
       );
     }
     const pc = this.cfg.pivotCfg;
-    if (this.cfg.pivots && this.pivotStore?.loaded) this.pivots.setData(buildPivots(cs, this.pivotStore.candles, pc?.count ?? 15, pc?.type ?? 'Traditional'));
+    if (this.cfg.pivots && this.pivotStore?.loaded) {
+      const sess = this.sess();
+      const ptf = this.pivotStore.tf;
+      this.pivots.setData(buildPivots(cs, this.pivotStore.candles, pc?.count ?? 15, pc?.type ?? 'Traditional', sess ? (t) => bucketStart(ptf, t, sess) : undefined));
+    }
     else this.pivots.setData([]);
     if (!this.hovering) this.updateLegend();
   }
@@ -866,7 +875,8 @@ export class ChartPanel {
     const i = c ? cs.indexOf(c) : -1;
     const cfg = this.cfg;
     const tfName = tfLabel(cfg.tf);
-    const src = this.deps.hub.provider.label.toUpperCase();
+    const prov = this.deps.hub.provider;
+    const src = (prov.sourceLabel?.(this.symbol) ?? prov.label).toUpperCase();
     let html = `<div class="lg-row lg-main"><span class="lg-title" data-act="settings" title="Configurar indicadores">${esc(this.symbol)} · ${tfName} · ${esc(src)}</span>`;
     if (c) {
       const prev = i > 0 ? cs[i - 1].close : c.open;
@@ -1079,7 +1089,7 @@ export class ChartPanel {
     if (i < 0) logical = (t - cs[0].time) / this.tfSecs();
     else {
       const start = cs[i].time;
-      const end = i + 1 < n ? cs[i + 1].time : nextBucketStart(this.cfg.tf, start);
+      const end = i + 1 < n ? cs[i + 1].time : nextBucketStart(this.cfg.tf, start, this.sess());
       if (i === n - 1 && t >= end) logical = n - 1 + (t - start) / this.tfSecs();
       else logical = i + Math.min(0.999, (t - start) / Math.max(1, end - start));
     }

@@ -2,7 +2,7 @@ import type { DataProvider, SearchResult } from '../providers/provider';
 
 // Buscador de símbolos como el de TradingView: caja de búsqueda, pestañas por tipo
 // y lista de resultados con la fuente de datos a la derecha. Busca en todas las
-// fuentes que tenga la app (de momento Binance; OANDA y acciones en la fase 4).
+// fuentes que tenga la app (Binance, Alpaca y Capital.com).
 
 type Kind = 'all' | SearchResult['kind'];
 
@@ -25,7 +25,7 @@ export function openSymbolSearch(providers: DataProvider[], initial: string, onP
   dlg.innerHTML = `
     <div class="ss-head">
       <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7.5" cy="7.5" r="5"/><path d="M11.2 11.2 16 16"/></svg>
-      <input class="ss-input" spellcheck="false" autocomplete="off" placeholder="Símbolo, p. ej. ETHUSDT" />
+      <input class="ss-input" spellcheck="false" autocomplete="off" placeholder="Símbolo, p. ej. ETHUSDT, AAPL, XAUUSD" />
       <button class="ss-x" title="Cerrar">✕</button>
     </div>
     <div class="ss-tabs"></div>
@@ -68,8 +68,13 @@ export function openSymbolSearch(providers: DataProvider[], initial: string, onP
     const shown = results.filter((r) => kind === 'all' || r.kind === kind);
     if (sel >= shown.length) sel = Math.max(0, shown.length - 1);
     if (!shown.length) {
-      const soon = kind === 'stock' || kind === 'forex' || kind === 'index' || kind === 'commodity';
-      list.innerHTML = `<div class="ss-empty">${soon ? 'Esta categoría llegará en la fase 4 (acciones, oro, plata y forex con OANDA / Alpaca).' : 'Sin resultados.'}</div>`;
+      const hint =
+        kind === 'stock'
+          ? 'Sin resultados. Para ver acciones, pega tus claves de Alpaca en "🔑 Fuentes de datos" (arriba a la derecha).'
+          : kind === 'index'
+            ? 'Los índices todavía no están disponibles.'
+            : 'Sin resultados.';
+      list.innerHTML = `<div class="ss-empty">${hint}</div>`;
       return;
     }
     list.innerHTML = shown

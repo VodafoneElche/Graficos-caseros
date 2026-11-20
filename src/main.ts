@@ -14,6 +14,7 @@ import { tools } from './ui/tools';
 import { Watchlist } from './ui/watchlist';
 import { openSymbolSearch } from './ui/symbolSearch';
 import { initAlerts } from './ui/alerts';
+import { openDataSources } from './ui/dataSources';
 
 // Punto de entrada: monta la barra superior, la watchlist y los gráficos.
 
@@ -118,6 +119,7 @@ async function setSymbol(symbol: string) {
   watchlist.setActive(symbol);
   $('#cur-symbol').textContent = symbol;
   document.title = `${symbol} · Gráficos`;
+  watchSymbolStatus(symbol);
   try {
     symbolInfo = await provider.getSymbolInfo(symbol);
   } catch (e) {
@@ -209,12 +211,25 @@ $('#btn-sidebar').onclick = () => document.body.classList.toggle('hide-sidebar')
   });
 })();
 
-// Estado de conexión
-provider.onStatus((s) => {
+// Estado de conexión: el de la fuente del símbolo que se está viendo.
+let unStatus: (() => void) | null = null;
+function paintStatus(s: string, src: string, msg = '') {
   const dot = $('#conn');
   dot.className = 'conn ' + s;
-  dot.title = s === 'open' ? `Tiempo real conectado (${provider.label})` : s === 'connecting' ? 'Conectando…' : 'Sin conexión en tiempo real: reintentando…';
-});
+  dot.title = s === 'open' ? `Tiempo real conectado (${src})` : s === 'connecting' ? `Conectando con ${src}… ${msg}` : `Sin conexión en tiempo real con ${src}: reintentando… ${msg}`;
+}
+function watchSymbolStatus(symbol: string) {
+  unStatus?.();
+  const src = provider.sourceLabel?.(symbol) ?? provider.label;
+  $('#provider-name').textContent = src;
+  if (provider.onSymbolStatus) unStatus = provider.onSymbolStatus(symbol, (s, msg) => paintStatus(s, src, msg));
+  else unStatus = provider.onStatus((s) => paintStatus(s, src));
+}
+$('#btn-sources').onclick = () =>
+  openDataSources(() => {
+    // Claves nuevas: se recarga la app para volver a pedir todo con ellas.
+    location.reload();
+  });
 onServerStatus((ok) => {
   $('#server-warn').style.display = ok ? 'none' : '';
 });
@@ -342,7 +357,6 @@ initAlerts({ drawings, getSymbol: () => layout.symbol, goSymbol: (s) => setSymbo
     }
   }
   layout = normalizeLayout(saved);
-  $('#provider-name').textContent = provider.label;
   const ver = $('#app-version');
   ver.textContent = `v${__APP_VERSION__}`;
   ver.title = `Versión ${__APP_VERSION__} · compilada el ${__APP_BUILT__.split('-').reverse().join('/')}`;
