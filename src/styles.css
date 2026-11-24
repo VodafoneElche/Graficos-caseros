@@ -1091,3 +1091,81 @@ dialog.symsearch[open] {
   font-size: 12px;
   color: #787b86;
 }
+
+/* ── Actualizaciones (programa de escritorio) ── */
+.version.clickable {
+  cursor: pointer;
+}
+.version.clickable:hover {
+  color: #d1d4dc;
+  border-color: var(--dim);
+}
+.upd-pill {
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 8px;
+  background: var(--ui2);
+  color: #d1d4dc;
+  cursor: default;
+}
+.upd-pill.ok {
+  color: #26a69a;
+}
+.upd-pill.err {
+  color: #f7a600;
+}
+.upd-pill.ready {
+  background: #26a69a;
+  border-color: #26a69a;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.upd-card {
+  position: fixed;
+  right: 16px;
+  top: 52px;
+  z-index: 1000;
+  width: min(380px, calc(100vw - 32px));
+  background: #1e222d;
+  border: 1px solid #26a69a;
+  border-radius: 8px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+  color: #d1d4dc;
+  font-size: 13px;
+}
+.upd-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.upd-text {
+  color: var(--dim);
+  line-height: 1.4;
+}
+.upd-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.upd-notes {
+  color: #5b9cf6;
+  margin-right: auto;
+}
+.upd-buttons button {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 10px;
+  background: var(--ui2);
+  color: #d1d4dc;
+  cursor: pointer;
+}
+.upd-buttons .upd-now {
+  background: #26a69a;
+  border-color: #26a69a;
+  color: #fff;
+  font-weight: 700;
+}

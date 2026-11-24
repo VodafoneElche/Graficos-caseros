@@ -15,6 +15,7 @@ import { Watchlist } from './ui/watchlist';
 import { openSymbolSearch } from './ui/symbolSearch';
 import { initAlerts } from './ui/alerts';
 import { openDataSources } from './ui/dataSources';
+import { initUpdates } from './ui/updates';
 
 // Punto de entrada: monta la barra superior, la watchlist y los gráficos.
 
@@ -377,6 +378,7 @@ initAlerts({ drawings, getSymbol: () => layout.symbol, goSymbol: (s) => setSymbo
   const ver = $('#app-version');
   ver.textContent = `v${__APP_VERSION__}`;
   ver.title = `Versión ${__APP_VERSION__} · compilada el ${__APP_BUILT__.split('-').reverse().join('/')}`;
+  initUpdates(ver);
   watchlist.setSymbols(wl && wl.length ? wl : DEFAULT_WATCHLIST);
   renderModeButtons();
   buildPanels();

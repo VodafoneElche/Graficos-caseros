@@ -1,6 +1,6 @@
 {
   "name": "graficos-familia",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Gráficos familia: app privada de gráficos de trading",
   "scripts": {
     "dev": "vite",
@@ -64,6 +64,17 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "language": "3082"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "VodafoneElche",
+        "repo": "Graficos-caseros",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

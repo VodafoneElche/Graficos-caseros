@@ -9,7 +9,7 @@ Aplicación web privada de gráficos de trading, para uso familiar. Sustituye la
 
 ## Instalar el programa en Windows (recomendado)
 
-1. Descarga el instalador: <https://github.com/VodafoneElche/Graficos-caseros/releases/download/ultima-version/Graficos-familia-Setup.exe>
+1. Descarga el instalador: <https://github.com/VodafoneElche/Graficos-caseros/releases/latest/download/Graficos-familia-Setup.exe>
    (o entra en <https://github.com/VodafoneElche/Graficos-caseros/releases> y pulsa el `.exe`).
 2. Haz doble clic en el archivo descargado. Si Windows avisa con *"Windows protegió su PC"*, pulsa *Más información → Ejecutar de todas formas* (el instalador no está firmado, es nuestro).
 3. Sigue el asistente. Crea el acceso **Gráficos familia** en el escritorio y en el menú Inicio.
@@ -18,7 +18,13 @@ Aplicación web privada de gráficos de trading, para uso familiar. Sustituye la
 Atajos del programa: **F11** pantalla completa, **F5** recargar, **Ctrl + / Ctrl − / Ctrl 0** tamaño de letra.
 Los datos (líneas, ajustes) se guardan en `%APPDATA%\Graficos familia\datos`.
 
-Cada vez que se publica un cambio, GitHub genera un instalador nuevo en ese mismo enlace: basta con descargarlo e instalar encima.
+### Actualizaciones automáticas (desde la v0.3.3)
+
+El programa se actualiza solo. Al abrirlo, y luego cada 2 horas, mira en GitHub si hay una versión nueva; si la hay, la descarga en segundo plano (arriba a la derecha se ve *⬇ Descargando…*). Cuando termina sale un aviso **Hay una versión nueva** con el botón **Reiniciar y actualizar**: el programa se cierra, se instala en unos segundos y se vuelve a abrir. Si pulsas *Más tarde*, se instala sola la próxima vez que cierres el programa. Las líneas, alertas y ajustes no se tocan.
+
+Para buscar a mano, haz clic en el número de versión (arriba a la derecha).
+
+Cómo se publica una versión nueva: ver [PUBLICAR.md](PUBLICAR.md).
 
 ## Alternativa: abrirla en el navegador
 

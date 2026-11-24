@@ -7,12 +7,14 @@
 //   F5         recargar
 //   Ctrl+0/+/- zoom
 // Los datos (líneas, ajustes) se guardan en %APPDATA%\Graficos familia\datos.
+// Se actualiza solo desde GitHub Releases (ver electron/updater.mjs).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { app, BrowserWindow, dialog, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startServer } from '../server/server.mjs';
+import { initUpdater } from './updater.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, '..');
@@ -58,6 +60,7 @@ if (!app.requestSingleInstanceLock()) {
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
+        preload: path.join(here, 'preload.cjs'),
       },
     });
     win.removeMenu();
@@ -107,6 +110,7 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     win.on('closed', () => (win = null));
+    initUpdater(() => win);
     await win.loadURL(`${appOrigin}/?app=1`);
   }
 
