@@ -1493,6 +1493,9 @@ export class ChartPanel {
           return;
         }
         if (d.selectedId) d.select(null);
+        // Arrastrar el gráfico: el desplazamiento horizontal lo hace la librería;
+        // el vertical (subir/bajar el precio) lo añadimos aquí, como en TradingView.
+        this.startPricePan(e);
       },
       { capture: true },
     );
@@ -1506,6 +1509,41 @@ export class ChartPanel {
         { capture: true, passive: false },
       );
     }
+  }
+
+  /** Mover el precio arriba/abajo arrastrando el gráfico (quita el encuadre automático, como TradingView). */
+  private startPricePan(e: PointerEvent) {
+    const H = this.chart.panes()[0]?.getHeight() ?? 0;
+    const pTop = this.candle.coordinateToPrice(0);
+    const pBot = this.candle.coordinateToPrice(H);
+    if (!H || pTop == null || pBot == null) return;
+    const log = !!this.cfg.logScale && pTop > 0 && pBot > 0;
+    const f = (v: number) => (log ? Math.log(v) : v);
+    const inv = (v: number) => (log ? Math.exp(v) : v);
+    const top = f(pTop);
+    const bot = f(pBot);
+    const startY = e.clientY;
+    let active = false;
+    const scale = this.chart.priceScale('right');
+    const move = (ev: PointerEvent) => {
+      const dy = ev.clientY - startY;
+      if (!active) {
+        if (Math.abs(dy) < 5) return;
+        active = true;
+        scale.setAutoScale(false);
+        this.refreshAuto();
+      }
+      const shift = (dy * (top - bot)) / H;
+      scale.setVisibleRange({ from: inv(bot + shift), to: inv(top + shift) });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+    };
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
   }
 
   // ── Regla de medir ────────────────────────────────────────────────────────
