@@ -1511,30 +1511,20 @@ export class ChartPanel {
     }
   }
 
-  /** Mover el precio arriba/abajo arrastrando el gráfico (quita el encuadre automático, como TradingView). */
+  /**
+   * Mover el precio arriba/abajo arrastrando el gráfico. La librería ya lo hace (también en
+   * escala logarítmica) cuando el encuadre automático está quitado; aquí sólo lo quitamos en
+   * cuanto el arrastre tiene movimiento vertical, como hace TradingView (el botón A lo repone).
+   */
   private startPricePan(e: PointerEvent) {
-    const H = this.chart.panes()[0]?.getHeight() ?? 0;
-    const pTop = this.candle.coordinateToPrice(0);
-    const pBot = this.candle.coordinateToPrice(H);
-    if (!H || pTop == null || pBot == null) return;
-    const log = !!this.cfg.logScale && pTop > 0 && pBot > 0;
-    const f = (v: number) => (log ? Math.log(v) : v);
-    const inv = (v: number) => (log ? Math.exp(v) : v);
-    const top = f(pTop);
-    const bot = f(pBot);
-    const startY = e.clientY;
-    let active = false;
     const scale = this.chart.priceScale('right');
+    if (scale.options().autoScale === false) return;
+    const startY = e.clientY;
     const move = (ev: PointerEvent) => {
-      const dy = ev.clientY - startY;
-      if (!active) {
-        if (Math.abs(dy) < 5) return;
-        active = true;
-        scale.setAutoScale(false);
-        this.refreshAuto();
-      }
-      const shift = (dy * (top - bot)) / H;
-      scale.setVisibleRange({ from: inv(bot + shift), to: inv(top + shift) });
+      if (Math.abs(ev.clientY - startY) < 5) return;
+      scale.setAutoScale(false);
+      this.refreshAuto();
+      up();
     };
     const up = () => {
       window.removeEventListener('pointermove', move, true);
