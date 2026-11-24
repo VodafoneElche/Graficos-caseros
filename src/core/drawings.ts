@@ -1,6 +1,6 @@
 import { api } from '../api';
-import { fibDefaults, fibExtDefaults, positionDefaults } from './toolDefaults';
-import type { Drawing, FibExt, HLine, Position, VLine } from './types';
+import { fibDefaults, fibExtDefaults, positionDefaults, shapeDefaults } from './toolDefaults';
+import type { Drawing, FibExt, HLine, Position, Shape, ShapeType, VLine } from './types';
 
 // Dibujos del símbolo activo: líneas horizontales y verticales y extensiones de Fibonacci.
 // Una sola lista compartida por los 6 gráficos: si mueves una línea en uno, se mueve en todos.
@@ -10,6 +10,17 @@ import type { Drawing, FibExt, HLine, Position, VLine } from './types';
 type Listener = () => void;
 
 export const LINE_COLORS = ['#ffeb3b', '#f23645', '#ff9800', '#089981', '#2962ff', '#7e57c2', '#ffffff', '#787b86'];
+
+const SHAPE_STYLE_KEY = 'shapeStyles';
+type ShapeStyle = Partial<Pick<Shape, 'color' | 'width' | 'style' | 'extend' | 'fill' | 'fillColor' | 'arrow' | 'textColor' | 'fontSize'>>;
+
+function loadShapeStyles(): Partial<Record<ShapeType, ShapeStyle>> {
+  try {
+    return JSON.parse(localStorage.getItem(SHAPE_STYLE_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
 
 function newId(): string {
   return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -22,6 +33,8 @@ export class DrawingsStore {
   dragging = false;
   lastColor = LINE_COLORS[0];
   lastWidth = 1;
+  /** Último estilo usado en cada forma (la siguiente línea de tendencia sale igual que la anterior). */
+  private shapeStyles = loadShapeStyles();
   private listeners = new Set<Listener>();
   private saveTimers = new Map<string, number>();
   private loadSeq = 0;
@@ -100,11 +113,37 @@ export class DrawingsStore {
     return this.add({ id: newId(), symbol: this.symbol, type: 'position', ...positionDefaults(), ...p }) as Position;
   }
 
+  /** Crea una forma (línea de tendencia, rectángulo, trayectoria o nota). Sin guardar si `persist` es false (mientras se dibuja). */
+  addShape(type: ShapeType, points: Shape['points'], persist: boolean, extra: Partial<Shape> = {}): Shape {
+    const d: Shape = { id: newId(), symbol: this.symbol, type, points, ...shapeDefaults(type), ...this.shapeStyles[type], ...extra };
+    this.items = [...this.items, d];
+    this.selectedId = d.id;
+    this.emit();
+    if (persist) this.persist(d.id, 0);
+    return d;
+  }
+
   update(id: string, patch: Partial<Drawing>, persistDelay = 400) {
     this.items = this.items.map((d) => (d.id === id ? ({ ...d, ...patch } as Drawing) : d));
     const anyPatch = patch as any;
-    if (anyPatch.color) this.lastColor = anyPatch.color;
-    if (anyPatch.width) this.lastWidth = anyPatch.width;
+    const cur = this.items.find((d) => d.id === id);
+    if (cur?.type === 'hline' || cur?.type === 'vline') {
+      if (anyPatch.color) this.lastColor = anyPatch.color;
+      if (anyPatch.width) this.lastWidth = anyPatch.width;
+    } else if (cur && ['trend', 'rect', 'path', 'note', 'comment'].includes(cur.type)) {
+      const keys = ['color', 'width', 'style', 'extend', 'fill', 'fillColor', 'arrow', 'textColor', 'fontSize'] as const;
+      const st: any = { ...this.shapeStyles[cur.type as ShapeType] };
+      let changed = false;
+      for (const k of keys) if (k in anyPatch) ((st[k] = anyPatch[k]), (changed = true));
+      if (changed) {
+        this.shapeStyles[cur.type as ShapeType] = st;
+        try {
+          localStorage.setItem(SHAPE_STYLE_KEY, JSON.stringify(this.shapeStyles));
+        } catch {
+          /* sin almacenamiento */
+        }
+      }
+    }
     this.emit();
     if (persistDelay >= 0) this.persist(id, persistDelay);
   }

@@ -18,7 +18,7 @@ import {
 import type { DataHub, SeriesStore, StoreEvent } from '../core/store';
 import type { DrawingsStore } from '../core/drawings';
 import { bucketStart, candleIndexAtOrBefore, nextBucketStart, TIMEFRAMES, tfGroup, tfLabel } from '../core/timeframes';
-import type { Candle, Drawing, FibExt, MaCfg, PanelCfg, Position, TfId } from '../core/types';
+import type { Candle, Drawing, FibExt, MaCfg, PanelCfg, Position, Shape, ShapeType, TfId } from '../core/types';
 import {
   buildPivots,
   movingAverage,
@@ -34,6 +34,7 @@ import {
 import type { SymbolInfo } from '../providers/provider';
 import { THEME } from '../ui/defaults';
 import { tools } from '../ui/tools';
+import { extendSegment, NOTE_STEM, rectCorners, segDist, textBox, type Pt } from './shapeGeom';
 import type { CrosshairSync } from './crosshairSync';
 import { formatPrice, formatVolumeEs, makeTimeFormatter, tickMarkFormatter } from './format';
 import { PivotsPrimitive } from './pivotsPrimitive';
@@ -41,7 +42,7 @@ import { MeasurePrimitive, type Measure } from './measurePrimitive';
 import { DrawingsPrimitive, fibExtPrice, fibLevelXs } from './drawingsPrimitive';
 import { TwoYmaFill } from './twoYmaFill';
 import { RsiFill } from './rsiFill';
-import { openMaSettings, openPivotSettings, openRsiSettings, openTwoYmaSettings, openFibSettings, openPositionSettings } from '../ui/indicatorSettings';
+import { openMaSettings, openPivotSettings, openRsiSettings, openTwoYmaSettings, openFibSettings, openPositionSettings, openShapeSettings } from '../ui/indicatorSettings';
 
 // Un gráfico completo: velas, volumen, medias, medias de otra temporalidad, RSI,
 // pivots, líneas horizontales y leyenda tipo TradingView (arriba a la izquierda).
@@ -134,8 +135,11 @@ export class ChartPanel {
   /** Momento del último clic usado por una herramienta (para no confundirlo con un doble clic). */
   private lastToolClick = 0;
   private drawPrim: DrawingsPrimitive;
-  /** Extensión de Fibonacci que se está dibujando (clic, clic, clic). */
-  private fibDraft: { id: string; step: number; n: number } | null = null;
+  /**
+   * Dibujo a medio hacer (Fibonacci, línea de tendencia, rectángulo o trayectoria):
+   * `step` = puntos ya fijados; `n` = puntos totales (Infinity en la trayectoria).
+   */
+  private fibDraft: { id: string; step: number; n: number; tool: string; down: { x: number; y: number } } | null = null;
   /** Dibujo bajo el ratón. */
   private hoverId: string | null = null;
 
@@ -255,7 +259,9 @@ export class ChartPanel {
     this.candle.attachPrimitive(this.drawPrim);
     this.candle.attachPrimitive(this.tyFill);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        if (this.fibDraft?.n === Infinity) return this.finishPath();
+        if (e.key === 'Enter') return;
         this.clearMeasure();
         this.cancelFibDraft();
       }
@@ -283,6 +289,7 @@ export class ChartPanel {
       const hit = this.inMainPane(x, y) ? this.hitDrawing(x, y) : null;
       if (hit?.d.type === 'fibext' || hit?.d.type === 'fib') return this.openFib(hit.d.id);
       if (hit?.d.type === 'position') return this.openPosition(hit.d.id);
+      if (hit && hit.d.type !== 'hline' && hit.d.type !== 'vline') return this.openFib(hit.d.id);
       if (hit) return;
       if (x > this.chart.timeScale().width()) return; // doble clic en la escala de precios: la reajusta
       this.deps.onMaximize();
@@ -943,8 +950,20 @@ export class ChartPanel {
   openFib(id: string) {
     const f = this.deps.drawings.items.find((x) => x.id === id);
     if (f?.type === 'position') return this.openPosition(id);
+    if (f && f.type !== 'fibext' && f.type !== 'fib' && f.type !== 'hline' && f.type !== 'vline') return this.openShape(id);
     if (f?.type !== 'fibext' && f?.type !== 'fib') return;
     openFibSettings(f, (patch) => this.deps.drawings.update(id, patch, 0));
+  }
+
+  /** Ajustes de una forma (tendencia, rectángulo, trayectoria o nota). `isNew`: si se cancela, se borra. */
+  openShape(id: string, isNew = false) {
+    const sh = this.deps.drawings.items.find((x) => x.id === id) as Shape | undefined;
+    if (!sh || !['trend', 'rect', 'path', 'note', 'comment'].includes(sh.type)) return;
+    openShapeSettings(
+      sh,
+      (patch: Partial<Shape>) => this.deps.drawings.update(id, patch, 0),
+      isNew ? () => this.deps.drawings.remove(id) : undefined,
+    );
   }
 
   openPosition(id: string) {
@@ -1124,7 +1143,7 @@ export class ChartPanel {
     return { time, price: this.roundPrice(price) };
   }
 
-  private fibPts(d: FibExt): { x: number; y: number }[] | null {
+  private fibPts(d: { points: { time: number; price: number }[] }): { x: number; y: number }[] | null {
     const pts = d.points.map((p) => {
       const x = this.timeToX(p.time);
       const y = this.candle.priceToCoordinate(p.price);
@@ -1141,13 +1160,6 @@ export class ChartPanel {
         bestD = dist;
         best = { d, part };
       }
-    };
-    const segDist = (px: number, py: number, a: { x: number; y: number }, b: { x: number; y: number }) => {
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const L = dx * dx + dy * dy;
-      const t = L ? Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / L)) : 0;
-      return Math.hypot(px - (a.x + t * dx), py - (a.y + t * dy));
     };
     for (const d of this.drawingItems()) {
       if (d.type === 'hline') {
@@ -1179,6 +1191,33 @@ export class ChartPanel {
             const yy = this.candle.priceToCoordinate(fibExtPrice(d, l.value));
             if (yy != null) consider(d, 'body', Math.abs(yy - y));
           }
+        }
+      } else {
+        const sh = d as Shape;
+        const P = this.fibPts(sh as any);
+        if (!P || !P.length) continue;
+        const near = (p: Pt) => Math.hypot(p.x - x, p.y - y) - 3;
+        if (sh.type === 'trend') {
+          P.forEach((p, k) => consider(sh, k, near(p)));
+          const W = this.chart.timeScale().width();
+          const H = this.chart.panes()[0]?.getHeight() ?? 0;
+          const [a, b] = extendSegment(P[0], P[1], sh.extend, W, H);
+          consider(sh, 'body', segDist(x, y, a, b));
+        } else if (sh.type === 'rect') {
+          const C = rectCorners(P[0], P[1]);
+          C.forEach((p, k) => consider(sh, k, near(p)));
+          const [a, b, c, e] = C;
+          for (const [u, v] of [[a, c], [c, b], [b, e], [e, a]]) consider(sh, 'body', segDist(x, y, u, v));
+          const inside = x >= Math.min(a.x, b.x) && x <= Math.max(a.x, b.x) && y >= Math.min(a.y, b.y) && y <= Math.max(a.y, b.y);
+          if (inside && sh.fill) consider(sh, 'body', HIT_PX - 0.5);
+        } else if (sh.type === 'path') {
+          P.forEach((p, k) => consider(sh, k, near(p)));
+          for (let k = 0; k + 1 < P.length; k++) consider(sh, 'body', segDist(x, y, P[k], P[k + 1]));
+        } else if (sh.type === 'note' || sh.type === 'comment') {
+          consider(sh, 0, near(P[0]));
+          const bx = textBox(sh, P[0].x, P[0].y);
+          if (x >= bx.x && x <= bx.x + bx.w && y >= bx.y && y <= bx.y + bx.h) consider(sh, 'body', HIT_PX - 1);
+          if (sh.type === 'note') consider(sh, 'body', segDist(x, y, P[0], { x: P[0].x, y: P[0].y - NOTE_STEM }));
         }
       }
     }
@@ -1218,43 +1257,100 @@ export class ChartPanel {
   // Fibonacci: extensión (clic en A, B y C) o retroceso (clic en A y B), como en TradingView.
   private fibMove: ((ev: PointerEvent) => void) | null = null;
 
-  private startFib(e: PointerEvent, kind: FibExt['type']) {
+  private fibUp: ((ev: PointerEvent) => void) | null = null;
+
+  /**
+   * Empieza un dibujo de varios puntos: Fibonacci (2 o 3 clics), línea de tendencia y
+   * rectángulo (2 clics, o pulsar y arrastrar) y trayectoria (clic en cada punto;
+   * doble clic, Intro o Esc para terminar).
+   */
+  private startFib(e: PointerEvent, kind: FibExt['type'] | 'trend' | 'rect' | 'path') {
     const p = this.pointAtTime(e);
     if (!p) return;
     this.suppressMouse = true;
     const dr = this.deps.drawings;
     dr.dragging = true;
-    const n = kind === 'fib' ? 2 : 3;
-    const f = dr.addFib(kind, Array.from({ length: n }, () => ({ ...p })), false);
-    this.fibDraft = { id: f.id, step: 1, n };
+    const n = kind === 'fibext' ? 3 : kind === 'path' ? Infinity : 2;
+    const two = [{ ...p }, { ...p }];
+    const f =
+      kind === 'fib' || kind === 'fibext'
+        ? dr.addFib(kind, Array.from({ length: n }, () => ({ ...p })), false)
+        : dr.addShape(kind, two, false);
+    this.fibDraft = { id: f.id, step: 1, n, tool: kind, down: { x: e.clientX, y: e.clientY } };
     this.fibMove = (ev: PointerEvent) => {
       const q = this.pointAtTime(ev);
       const draft = this.fibDraft;
       if (!q || !draft) return;
-      const cur = dr.items.find((x) => x.id === draft.id) as FibExt | undefined;
+      const cur = dr.items.find((x) => x.id === draft.id) as FibExt | Shape | undefined;
       if (!cur) return;
       const pts = cur.points.slice();
-      for (let k = draft.step; k < draft.n; k++) pts[k] = q;
+      for (let k = draft.step; k < pts.length; k++) pts[k] = q;
       dr.update(draft.id, { points: pts }, -1);
     };
+    // Pulsar y arrastrar: al soltar lejos del primer punto se fija el segundo.
+    this.fibUp = (ev: PointerEvent) => {
+      const draft = this.fibDraft;
+      if (!draft || draft.step !== 1 || draft.tool === 'fibext') return;
+      if (Math.hypot(ev.clientX - draft.down.x, ev.clientY - draft.down.y) < 8) return;
+      this.fibMove?.(ev);
+      this.fibClick(ev);
+    };
     window.addEventListener('pointermove', this.fibMove, true);
+    window.addEventListener('pointerup', this.fibUp, true);
   }
 
-  private fibClick() {
+  private fibClick(e?: { clientX: number; clientY: number }) {
     const draft = this.fibDraft;
     if (!draft) return;
+    if (draft.n === Infinity) {
+      // Trayectoria: cada clic fija un punto; un clic sobre el último punto (doble clic) termina.
+      const dr = this.deps.drawings;
+      const cur = dr.items.find((x) => x.id === draft.id) as Shape | undefined;
+      if (!cur) return this.endFibDraft();
+      const q = e ? this.pointAtTime(e) : null;
+      const pts = cur.points.slice();
+      if (q) pts[pts.length - 1] = q;
+      const xy = this.fibPts({ points: pts });
+      if (xy && xy.length >= 2) {
+        const a = xy[xy.length - 1];
+        const b = xy[xy.length - 2];
+        if (Math.hypot(a.x - b.x, a.y - b.y) < 5) {
+          dr.update(draft.id, { points: pts.slice(0, -1) }, -1);
+          return this.finishPath();
+        }
+      }
+      pts.push(pts[pts.length - 1]);
+      draft.step = pts.length - 1;
+      dr.update(draft.id, { points: pts }, -1);
+      return;
+    }
     draft.step++;
     if (draft.step < draft.n) return;
     this.endFibDraft();
     this.deps.drawings.persist(draft.id, 0);
   }
 
+  /** Termina la trayectoria con los puntos ya fijados (quita el que sigue al ratón). */
+  private finishPath() {
+    const draft = this.fibDraft;
+    if (!draft) return;
+    const dr = this.deps.drawings;
+    const cur = dr.items.find((x) => x.id === draft.id) as Shape | undefined;
+    const pts = cur ? cur.points.slice(0, draft.step) : [];
+    this.endFibDraft();
+    if (pts.length < 2) return dr.remove(draft.id);
+    dr.update(draft.id, { points: pts }, 0);
+  }
+
   private endFibDraft() {
     if (this.fibMove) window.removeEventListener('pointermove', this.fibMove, true);
+    if (this.fibUp) window.removeEventListener('pointerup', this.fibUp, true);
     this.fibMove = null;
+    this.fibUp = null;
+    const tool = this.fibDraft?.tool;
     this.fibDraft = null;
     this.deps.drawings.dragging = false;
-    if (tools.active === 'fibext' || tools.active === 'fib') tools.set('none');
+    if (tool && tools.active === tool) tools.set('none');
     setTimeout(() => (this.suppressMouse = false), 0);
     this.updateCursor();
   }
@@ -1347,12 +1443,25 @@ export class ChartPanel {
         if (this.measuring === 'done') this.clearMeasure();
         if (this.fibDraft) {
           stop(e);
-          this.fibClick();
+          this.fibClick(e);
           return;
         }
-        if (tools.active === 'fibext' || tools.active === 'fib') {
+        const ta = tools.active;
+        if (ta === 'fibext' || ta === 'fib' || ta === 'trend' || ta === 'rect' || ta === 'path') {
           stop(e);
-          this.startFib(e, tools.active);
+          this.startFib(e, ta);
+          return;
+        }
+        if (ta === 'note' || ta === 'comment') {
+          stop(e);
+          const p = this.pointAtTime(e);
+          if (!p) return;
+          this.suppressMouse = true;
+          const sh = d.addShape(ta as ShapeType, [p], false);
+          tools.set('none');
+          setTimeout(() => (this.suppressMouse = false), 400);
+          // Se pide el texto; si se cancela, la nota nueva se borra.
+          setTimeout(() => this.openShape(sh.id, true), 0);
           return;
         }
         if (tools.active === 'long' || tools.active === 'short') {
@@ -1514,8 +1623,18 @@ export class ChartPanel {
             -1,
           );
         }
-      } else if (orig.type === 'fibext' || orig.type === 'fib') {
-        if (typeof hit.part === 'number') {
+      } else {
+        if (typeof hit.part === 'number' && orig.type === 'rect' && hit.part >= 2) {
+          // Esquinas mixtas del rectángulo: (tiempo del 0, precio del 1) y (tiempo del 1, precio del 0).
+          const q = this.pointAtTime(ev);
+          if (!q) return;
+          const [a, b] = orig.points;
+          const pts =
+            hit.part === 2
+              ? [{ time: q.time, price: a.price }, { time: b.time, price: q.price }]
+              : [{ time: a.time, price: q.price }, { time: q.time, price: b.price }];
+          d.update(id, { points: pts }, -1);
+        } else if (typeof hit.part === 'number') {
           const q = this.pointAtTime(ev);
           if (!q) return;
           const pts = orig.points.slice();

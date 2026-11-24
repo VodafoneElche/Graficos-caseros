@@ -1,6 +1,14 @@
-// Herramienta de dibujo activa (de momento sólo "línea horizontal").
+// Herramienta de dibujo activa.
 
-export type Tool = 'none' | 'hline' | 'vline' | 'fibext' | 'fib' | 'long' | 'short' | 'measure';
+export type Tool =
+  | 'none' | 'hline' | 'vline' | 'fibext' | 'fib' | 'long' | 'short' | 'measure'
+  | 'trend' | 'rect' | 'path' | 'note' | 'comment';
+
+/** Herramientas que crean una forma (`Shape`). */
+export const SHAPE_TOOLS = ['trend', 'rect', 'path', 'note', 'comment'] as const;
+export function isShapeTool(t: Tool): t is (typeof SHAPE_TOOLS)[number] {
+  return (SHAPE_TOOLS as readonly string[]).includes(t);
+}
 
 class ToolState {
   active: Tool = 'none';

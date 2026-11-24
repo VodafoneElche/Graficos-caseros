@@ -9,7 +9,8 @@ import type {
   Time,
 } from 'lightweight-charts';
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
-import type { Drawing, FibExt, LineStyleId, Position } from '../core/types';
+import type { Drawing, FibExt, LineStyleId, Position, Shape } from '../core/types';
+import { extendSegment, NOTE_STEM, rectCorners, SHAPE_FONT, textBox, type Pt } from './shapeGeom';
 
 // Dibuja los dibujos del usuario: líneas horizontales y verticales (con grosor
 // desde 0,5 px) y la extensión de Fibonacci en función de la tendencia.
@@ -143,6 +144,7 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     };
     for (const d of this.host.items()) {
       if (d.type === 'hline') push(d.price, d.color);
+      else if ((d.type === 'trend' || d.type === 'rect') && d.id === sel) for (const p of d.points) push(p.price, d.color);
       else if (d.type === 'position' && d.id === sel) {
         push(d.target, '#089981');
         push(d.entry.price, '#787b86');
@@ -244,6 +246,8 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
           this.drawFib(ctx, d, selected, hr, vr, bitmapSize.width, setLine, crisp, handle);
         } else if (d.type === 'position') {
           this.drawPosition(ctx, d, selected, hr, vr, bitmapSize.width, handle);
+        } else {
+          this.drawShape(ctx, d as Shape, selected, hr, vr, bitmapSize.width, bitmapSize.height, setLine, handle);
         }
       }
       ctx.restore();
@@ -398,6 +402,124 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
       handle(xa * hr, T, '#2962ff');
       handle(xa * hr, S, '#2962ff');
       handle(xb * hr, E, '#2962ff');
+    }
+  }
+
+  private drawShape(
+    ctx: CanvasRenderingContext2D,
+    d: Shape,
+    selected: boolean,
+    hr: number,
+    vr: number,
+    BW: number,
+    BH: number,
+    setLine: (c: string, w: number, st: LineStyleId, r: number) => void,
+    handle: (x: number, y: number, c: string) => void,
+  ) {
+    const s = this.series!;
+    const css = d.points.map((p) => {
+      const x = this.host.timeToX(p.time);
+      const y = s.priceToCoordinate(p.price);
+      return x == null || y == null ? null : { x, y };
+    });
+    if (!css.length || css.some((p) => !p)) return;
+    const P = css as Pt[];
+    const B = (p: Pt) => ({ x: p.x * hr, y: p.y * vr });
+    const W = BW / hr;
+    const H = BH / vr;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (d.type === 'trend') {
+      const [a, b] = extendSegment(P[0], P[1], d.extend, W, H).map(B);
+      setLine(d.color, d.width, d.style, hr);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      if (selected) P.forEach((p) => handle(p.x * hr, p.y * vr, '#2962ff'));
+    } else if (d.type === 'rect') {
+      const a = B(P[0]);
+      const b = B(P[1]);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(b.x - a.x);
+      const h = Math.abs(b.y - a.y);
+      if (d.fill) {
+        ctx.fillStyle = d.fillColor || hexToRgba(d.color, 0.2);
+        ctx.fillRect(x, y, w, h);
+      }
+      setLine(d.color, d.width, d.style, hr);
+      ctx.strokeRect(x, y, w, h);
+      if (selected) rectCorners(P[0], P[1]).forEach((p) => handle(p.x * hr, p.y * vr, '#2962ff'));
+    } else if (d.type === 'path') {
+      const Q = P.map(B);
+      setLine(d.color, d.width, d.style, hr);
+      ctx.beginPath();
+      ctx.moveTo(Q[0].x, Q[0].y);
+      for (let k = 1; k < Q.length; k++) ctx.lineTo(Q[k].x, Q[k].y);
+      ctx.stroke();
+      if (d.arrow && Q.length >= 2) {
+        const a = Q[Q.length - 2];
+        const b = Q[Q.length - 1];
+        const ang = Math.atan2(b.y - a.y, b.x - a.x);
+        const L = (8 + 2 * d.width) * hr;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(b.x - L * Math.cos(ang - 0.45), b.y - L * Math.sin(ang - 0.45));
+        ctx.lineTo(b.x, b.y);
+        ctx.lineTo(b.x - L * Math.cos(ang + 0.45), b.y - L * Math.sin(ang + 0.45));
+        ctx.stroke();
+      }
+      if (selected) Q.forEach((p) => handle(p.x, p.y, '#2962ff'));
+    } else if (d.type === 'note' || d.type === 'comment') {
+      const a = P[0];
+      const box = textBox(d, a.x, a.y);
+      const bx = box.x * hr;
+      const by = box.y * vr;
+      const bw = box.w * hr;
+      const bh = box.h * vr;
+      const r = 4 * hr;
+      ctx.setLineDash([]);
+      ctx.fillStyle = d.color;
+      ctx.beginPath();
+      if (d.type === 'note') {
+        // Palito desde el punto hasta el cuadro.
+        ctx.strokeStyle = d.color;
+        ctx.lineWidth = Math.max(1, hr);
+        ctx.moveTo(a.x * hr, a.y * vr);
+        ctx.lineTo(a.x * hr, (a.y - NOTE_STEM) * vr);
+        ctx.stroke();
+        ctx.beginPath();
+        (ctx as any).roundRect ? (ctx as any).roundRect(bx, by, bw, bh, r) : ctx.rect(bx, by, bw, bh);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(a.x * hr, a.y * vr, 2.5 * hr, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Bocadillo redondeado con la esquina de abajo a la izquierda en pico (como el icono de TradingView).
+        const rr = Math.min(bh / 2, 10 * hr);
+        ctx.moveTo(bx, by + bh);
+        ctx.lineTo(bx, by + rr);
+        ctx.arcTo(bx, by, bx + rr, by, rr);
+        ctx.lineTo(bx + bw - rr, by);
+        ctx.arcTo(bx + bw, by, bx + bw, by + rr, rr);
+        ctx.lineTo(bx + bw, by + bh - rr);
+        ctx.arcTo(bx + bw, by + bh, bx + bw - rr, by + bh, rr);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.fillStyle = (d.text ?? '').trim() ? d.textColor || '#ffffff' : 'rgba(255,255,255,0.6)';
+      ctx.font = `${Math.round(box.fs * vr)}px ${SHAPE_FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      box.lines.forEach((l, i) => ctx.fillText(l, bx + box.padX * hr, by + (box.padY + box.lh * (i + 0.5)) * vr));
+      if (selected) {
+        handle(a.x * hr, a.y * vr, '#2962ff');
+        ctx.strokeStyle = '#2962ff';
+        ctx.lineWidth = Math.max(1, hr);
+        ctx.strokeRect(bx - 2 * hr, by - 2 * vr, bw + 4 * hr, bh + 4 * vr);
+      }
     }
   }
 }

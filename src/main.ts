@@ -10,7 +10,7 @@ import type { SymbolInfo } from './providers/provider';
 import { DEFAULT_WATCHLIST, normalizeLayout } from './ui/defaults';
 import { tfLabel, USER_TFS } from './core/timeframes';
 import { openPanelSettings } from './ui/panelSettings';
-import { tools } from './ui/tools';
+import { SHAPE_TOOLS, tools } from './ui/tools';
 import { Watchlist } from './ui/watchlist';
 import { openSymbolSearch } from './ui/symbolSearch';
 import { initAlerts } from './ui/alerts';
@@ -159,6 +159,7 @@ $('#btn-fibext').onclick = () => tools.toggle('fibext');
 $('#btn-fib').onclick = () => tools.toggle('fib');
 $('#btn-long').onclick = () => tools.toggle('long');
 $('#btn-short').onclick = () => tools.toggle('short');
+for (const t of SHAPE_TOOLS) $(`#btn-${t}`).onclick = () => tools.toggle(t);
 $('#btn-indicators').onclick = () => openIndicators(activePanel);
 $('#symbox').onclick = () => openSearch('');
 function openSearch(initial: string) {
@@ -172,6 +173,7 @@ tools.subscribe((t) => {
   $('#btn-long').classList.toggle('on', t === 'long');
   $('#btn-short').classList.toggle('on', t === 'short');
   $('#btn-hline').classList.toggle('on', t === 'hline');
+  for (const st of SHAPE_TOOLS) $(`#btn-${st}`).classList.toggle('on', t === st);
   $('#btn-cursor').classList.toggle('on', t === 'none');
 });
 $('#btn-sidebar').onclick = () => document.body.classList.toggle('hide-sidebar');
@@ -244,16 +246,29 @@ function renderEditor() {
   }
   editor.style.display = '';
   const isLine = d.type === 'hline' || d.type === 'vline';
-  for (const sel of ['.le-swatches', '.le-color', '.le-width', '.le-style']) (editor.querySelector(sel) as HTMLElement).style.display = isLine ? '' : 'none';
+  const isShape = d.type === 'trend' || d.type === 'rect' || d.type === 'path' || d.type === 'note' || d.type === 'comment';
+  const isText = d.type === 'note' || d.type === 'comment';
+  for (const sel of ['.le-swatches', '.le-color']) (editor.querySelector(sel) as HTMLElement).style.display = isLine || isShape ? '' : 'none';
+  for (const sel of ['.le-width', '.le-style']) (editor.querySelector(sel) as HTMLElement).style.display = isLine || (isShape && !isText) ? '' : 'none';
   (editor.querySelector('.le-cfg') as HTMLElement).style.display = isLine ? 'none' : '';
   const priceInput = editor.querySelector('input.le-price') as HTMLInputElement;
   priceInput.style.display = d.type === 'hline' ? '' : 'none';
   if (d.type === 'hline' && document.activeElement !== priceInput) priceInput.value = String(d.price);
-  if (!isLine) return;
+  if (!isLine && !isShape) return;
   editor.querySelectorAll<HTMLButtonElement>('.swatch').forEach((b) => b.classList.toggle('on', b.dataset.c === d.color));
   (editor.querySelector('.le-width') as HTMLSelectElement).value = String(d.width);
   (editor.querySelector('.le-style') as HTMLSelectElement).value = String(d.style);
   (editor.querySelector('.le-color') as HTMLInputElement).value = d.color;
+}
+/** Color del dibujo seleccionado (en el rectángulo también cambia el fondo, translúcido). */
+function setSelColor(c: string) {
+  const d = drawings.selected;
+  if (!d) return;
+  const m = /^#?([0-9a-f]{6})$/i.exec(c);
+  if (d.type === 'rect' && m) {
+    const n = parseInt(m[1], 16);
+    drawings.update(d.id, { color: c, fillColor: `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},0.2)` });
+  } else drawings.update(d.id, { color: c });
 }
 (function buildEditor() {
   const sw = editor.querySelector('.le-swatches')!;
@@ -263,11 +278,10 @@ function renderEditor() {
     b.dataset.c = c;
     b.style.background = c;
     b.title = c;
-    b.onclick = () => drawings.selectedId && drawings.update(drawings.selectedId, { color: c });
+    b.onclick = () => setSelColor(c);
     sw.appendChild(b);
   }
-  (editor.querySelector('.le-color') as HTMLInputElement).oninput = (e) =>
-    drawings.selectedId && drawings.update(drawings.selectedId, { color: (e.target as HTMLInputElement).value });
+  (editor.querySelector('.le-color') as HTMLInputElement).oninput = (e) => setSelColor((e.target as HTMLInputElement).value);
   (editor.querySelector('.le-width') as HTMLSelectElement).onchange = (e) =>
     drawings.selectedId && drawings.update(drawings.selectedId, { width: +(e.target as HTMLSelectElement).value });
   (editor.querySelector('.le-style') as HTMLSelectElement).onchange = (e) =>
@@ -307,6 +321,9 @@ window.addEventListener('keydown', (e) => {
   } else if (e.altKey && (e.key === 'f' || e.key === 'F')) {
     e.preventDefault();
     tools.toggle('fib');
+  } else if (e.altKey && (e.key === 't' || e.key === 'T')) {
+    e.preventDefault();
+    tools.toggle('trend');
   } else if (!e.altKey && !e.ctrlKey && !e.metaKey && /^[a-zA-Z0-9]$/.test(e.key) && !document.querySelector('dialog[open]')) {
     // Como en TradingView: empezar a escribir abre el buscador de símbolos.
     e.preventDefault();

@@ -42,6 +42,10 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 | Pivots | Doble clic en "Pivots" en la leyenda: tipo, temporalidad, número de pivotes, etiquetas, precios, grosor y qué niveles (P, S1-S5, R1-R5) con su color. |
 | 2YMA | Media de 2 años (730 días) y esa media x 5, con fondos de zona barata/cara. Activada en el gráfico diario. |
 | Línea vertical | Botón de línea vertical (o **Alt+V**) y clic. Se ve en todas las temporalidades. |
+| Línea de tendencia (cuñas) | Botón de la raya inclinada (o **Alt+T**) y 2 clics, o pulsar y arrastrar. Se ve en los 6 gráficos. Arrastra un extremo para moverlo o la línea para moverla entera. Doble clic: color, grosor, estilo y **ampliar** a la izquierda/derecha. |
+| Rectángulo | Botón del cuadrado y 2 clics (esquinas opuestas) o arrastrar. Fondo translúcido del mismo color. Se ajusta desde cualquiera de las 4 esquinas. |
+| Trayectoria | Botón de la línea quebrada con flecha: un clic por punto y **doble clic** (o Intro / Esc) para terminar. |
+| Nota con poste / Comentario | Botón de la "T" con palito o del bocadillo y un clic: se abre una ventana para escribir el texto (Intro = otra línea, Ctrl+Intro = aceptar). Doble clic en la nota para cambiar el texto o los colores. |
 | Extensión de Fibonacci | Botón de Fibonacci y 3 clics: inicio, final y retroceso. Doble clic en ella para cambiar niveles y colores. Se mueve arrastrándola y cada punto por separado. |
 | Retroceso de Fibonacci | Botón de Fibonacci con rayas (o Alt+F) y 2 clics: inicio y final. Doble clic para niveles y colores. |
 | Posición larga / corta | Botón verde-rojo (larga) o rojo-verde (corta) y un clic en el precio de entrada. Arrastra los puntos azules para mover stop, objetivo, entrada y el final de la caja; arrastra la caja para moverla entera. Al pasar el ratón por encima se ven objetivo, stop, cantidad y ratio riesgo/beneficio. Doble clic para tamaño de cuenta, riesgo y colores. |
@@ -142,7 +146,7 @@ Las fórmulas de EMA, SMA, RSI y pivots son las mismas que usa TradingView, así
 
 - El gráfico de **45s** sale de velas de 1 segundo; al abrirlo carga unas 5 horas de historia (más si te desplazas a la izquierda).
 - Todavía **no hay usuario y contraseña**: por eso el servidor sólo acepta conexiones desde el mismo ordenador. El acceso desde el móvil y para toda la familia llega en la fase 5.
-- Líneas de tendencia en la fase 3. Las alertas (fase 2) de momento sólo funcionan con cripto de Binance.
+- Las alertas (fase 2) de momento sólo funcionan con cripto de Binance.
 
 ---
 

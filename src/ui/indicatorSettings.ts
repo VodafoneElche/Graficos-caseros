@@ -5,6 +5,7 @@ import type {
   MaCfg,
   PivotCfg,
   Position,
+  Shape,
   PivotLevelName,
   PivotTf,
   PivotType,
@@ -34,13 +35,19 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, 
   return e;
 }
 
-function openDialog(title: string, tabs: Tab[], onOk: () => void) {
+function openDialog(title: string, tabs: Tab[], onOk: () => void, onCancel?: () => void, focusSel?: string) {
   const dlg = h('dialog', { class: 'tvdlg' });
   document.body.appendChild(dlg);
   let current = 0;
+  let done = false;
   const close = () => {
     dlg.close();
     dlg.remove();
+  };
+  const cancelled = () => {
+    if (done) return;
+    done = true;
+    onCancel?.();
   };
   const body = h('div', { class: 'tvdlg-body' });
   const tabBar = h('div', { class: 'tvdlg-tabs' });
@@ -59,23 +66,41 @@ function openDialog(title: string, tabs: Tab[], onOk: () => void) {
   };
   const ok = h('button', { class: 'tvdlg-ok', type: 'button' }, 'Aceptar');
   ok.onclick = () => {
+    done = true;
     onOk();
     close();
   };
   const cancel = h('button', { class: 'tvdlg-cancel', type: 'button' }, 'Cancelar');
-  cancel.onclick = close;
+  cancel.onclick = () => {
+    cancelled();
+    close();
+  };
   const x = h('button', { class: 'tvdlg-x', type: 'button', title: 'Cerrar' }, '✕');
-  x.onclick = close;
+  x.onclick = () => {
+    cancelled();
+    close();
+  };
   dlg.append(h('div', { class: 'tvdlg-head' }, h('span', { class: 'tvdlg-title' }, title), x), tabBar, body, h('div', { class: 'tvdlg-foot' }, cancel, ok));
-  dlg.addEventListener('cancel', () => dlg.remove());
+  dlg.addEventListener('cancel', () => {
+    cancelled();
+    dlg.remove();
+  });
   dlg.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'SELECT') {
+    // En un cuadro de texto, Intro hace salto de línea (Ctrl+Intro acepta).
+    const tag = (e.target as HTMLElement).tagName;
+    if (e.key === 'Enter' && tag === 'TEXTAREA' && !e.ctrlKey) return;
+    if (e.key === 'Enter' && tag !== 'SELECT') {
       e.preventDefault();
       ok.click();
     }
   });
   renderTabs();
   dlg.showModal();
+  if (focusSel) {
+    const f = dlg.querySelector(focusSel) as HTMLInputElement | null;
+    f?.focus();
+    f?.select?.();
+  }
 }
 
 // ── Controles ────────────────────────────────────────────────────────────────
@@ -504,4 +529,73 @@ export function openPositionSettings(initial: Position, onApply: (patch: Partial
     void type;
     onApply(rest);
   });
+}
+
+// ── Formas: línea de tendencia, rectángulo, trayectoria y notas ─────────────
+
+const SHAPE_TITLES: Record<Shape['type'], string> = {
+  trend: 'Línea de tendencia',
+  rect: 'Rectángulo',
+  path: 'Trayectoria',
+  note: 'Nota con poste',
+  comment: 'Comentario',
+};
+
+export function openShapeSettings(initial: Shape, onApply: (patch: Partial<Shape>) => void, onCancel?: () => void) {
+  const f: Shape = structuredClone(initial);
+  const isText = f.type === 'note' || f.type === 'comment';
+  const style: Tab = {
+    name: 'Estilo',
+    render: (box) => {
+      if (isText) {
+        box.append(row('Color del cuadro', color(f.color, (v) => (f.color = v))));
+        return;
+      }
+      box.append(row(f.type === 'rect' ? 'Borde' : 'Línea', color(f.color, (v) => (f.color = v)), widthSel(f.width, (v) => (f.width = v), true), styleSel(f.style, (v) => (f.style = v))));
+      if (f.type === 'trend') {
+        box.append(
+          row(
+            'Ampliar',
+            select(f.extend ?? 'none', [
+              ['none', 'No ampliar'],
+              ['left', 'Ampliar a la izquierda'],
+              ['right', 'Ampliar a la derecha'],
+              ['both', 'Ampliar a ambos lados'],
+            ], (v) => (f.extend = v)),
+          ),
+        );
+      }
+      if (f.type === 'rect') {
+        box.append(row('Fondo', check(!!f.fill, '', (v) => (f.fill = v)), colorAlpha(f.fillColor ?? 'rgba(156,39,176,0.2)', (v) => (f.fillColor = v))));
+      }
+      if (f.type === 'path') box.append(h('div', { class: 'tv-row' }, check(!!f.arrow, 'Flecha al final', (v) => (f.arrow = v))));
+    },
+  };
+  const text: Tab = {
+    name: 'Texto',
+    render: (box) => {
+      const ta = h('textarea', { class: 'tv-text', rows: 4, placeholder: 'Escribe la nota…' }) as HTMLTextAreaElement;
+      ta.value = f.text ?? '';
+      ta.oninput = () => (f.text = ta.value);
+      box.append(
+        row('Color del texto', color(f.textColor ?? '#ffffff', (v) => (f.textColor = v)), select(String(f.fontSize ?? 12), ['10', '11', '12', '14', '16', '20', '24', '28'].map((v) => [v, v] as [string, string]), (v) => (f.fontSize = +v))),
+        ta,
+        h('div', { class: 'tv-hint' }, 'Intro: nueva línea · Ctrl+Intro: aceptar'),
+      );
+    },
+  };
+  openDialog(
+    SHAPE_TITLES[f.type],
+    isText ? [text, style] : [style],
+    () => {
+      const { id, symbol, type, points, ...rest } = f;
+      void id;
+      void symbol;
+      void type;
+      void points;
+      onApply(rest);
+    },
+    onCancel,
+    isText ? 'textarea' : undefined,
+  );
 }

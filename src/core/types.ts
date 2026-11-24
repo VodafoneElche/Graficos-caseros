@@ -233,4 +233,36 @@ export interface Position {
   alwaysStats: boolean;
 }
 
-export type Drawing = HLine | VLine | FibExt | Position;
+/**
+ * Formas de dibujo libres (por símbolo, se ven en los 6 gráficos):
+ * - 'trend'   línea de tendencia (2 puntos), con opción de ampliarla.
+ * - 'rect'    rectángulo (2 esquinas opuestas), con fondo translúcido.
+ * - 'path'    trayectoria: polilínea de varios puntos con flecha al final.
+ * - 'note'    nota con poste: cuadro de texto sobre un palito anclado a un punto.
+ * - 'comment' comentario: bocadillo de texto con la esquina inferior izquierda en el punto.
+ */
+export type ShapeType = 'trend' | 'rect' | 'path' | 'note' | 'comment';
+
+export interface Shape {
+  id: string;
+  symbol: string;
+  type: ShapeType;
+  points: { time: number; price: number }[];
+  /** Color de la línea (o del cuadro en las notas). */
+  color: string;
+  width: number;
+  style: LineStyleId;
+  /** Línea de tendencia: ampliar a izquierda/derecha. */
+  extend?: 'none' | 'left' | 'right' | 'both';
+  /** Rectángulo: fondo. */
+  fill?: boolean;
+  fillColor?: string;
+  /** Trayectoria: flecha en el último punto. */
+  arrow?: boolean;
+  /** Notas: texto, color del texto y tamaño. */
+  text?: string;
+  textColor?: string;
+  fontSize?: number;
+}
+
+export type Drawing = HLine | VLine | FibExt | Position | Shape;
