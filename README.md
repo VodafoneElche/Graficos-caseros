@@ -9,7 +9,7 @@ Aplicación web privada de gráficos de trading, para uso familiar. Sustituye la
 
 ## Instalar el programa en Windows (recomendado)
 
-1. Descarga el instalador: <https://github.com/VodafoneElche/Graficos-caseros/releases/download/ultima-version/Graficos-familia-Setup.exe>
+1. Descarga el instalador: <https://github.com/VodafoneElche/Graficos-caseros/releases/latest/download/Graficos-familia-Setup.exe>
    (o entra en <https://github.com/VodafoneElche/Graficos-caseros/releases> y pulsa el `.exe`).
 2. Haz doble clic en el archivo descargado. Si Windows avisa con *"Windows protegió su PC"*, pulsa *Más información → Ejecutar de todas formas* (el instalador no está firmado, es nuestro).
 3. Sigue el asistente. Crea el acceso **Gráficos familia** en el escritorio y en el menú Inicio.
@@ -18,7 +18,13 @@ Aplicación web privada de gráficos de trading, para uso familiar. Sustituye la
 Atajos del programa: **F11** pantalla completa, **F5** recargar, **Ctrl + / Ctrl − / Ctrl 0** tamaño de letra.
 Los datos (líneas, ajustes) se guardan en `%APPDATA%\Graficos familia\datos`.
 
-Cada vez que se publica un cambio, GitHub genera un instalador nuevo en ese mismo enlace: basta con descargarlo e instalar encima.
+### Actualizaciones automáticas (desde la v0.3.3)
+
+El programa se actualiza solo. Al abrirlo, y luego cada 2 horas, mira en GitHub si hay una versión nueva; si la hay, la descarga en segundo plano (arriba a la derecha se ve *⬇ Descargando…*). Cuando termina sale un aviso **Hay una versión nueva** con el botón **Reiniciar y actualizar**: el programa se cierra, se instala en unos segundos y se vuelve a abrir. Si pulsas *Más tarde*, se instala sola la próxima vez que cierres el programa. Las líneas, alertas y ajustes no se tocan.
+
+Para buscar a mano, haz clic en el número de versión (arriba a la derecha).
+
+Cómo se publica una versión nueva: ver [PUBLICAR.md](PUBLICAR.md).
 
 ## Alternativa: abrirla en el navegador
 
@@ -42,11 +48,16 @@ Abre <http://localhost:3000/?demo=1>. Usa precios inventados para poder probar l
 | Pivots | Doble clic en "Pivots" en la leyenda: tipo, temporalidad, número de pivotes, etiquetas, precios, grosor y qué niveles (P, S1-S5, R1-R5) con su color. |
 | 2YMA | Media de 2 años (730 días) y esa media x 5, con fondos de zona barata/cara. Activada en el gráfico diario. |
 | Línea vertical | Botón de línea vertical (o **Alt+V**) y clic. Se ve en todas las temporalidades. |
+| Línea de tendencia (cuñas) | Botón de la raya inclinada (o **Alt+T**) y 2 clics, o pulsar y arrastrar. Se ve en los 6 gráficos. Arrastra un extremo para moverlo o la línea para moverla entera. Doble clic: color, grosor, estilo y **ampliar** a la izquierda/derecha. |
+| Rectángulo | Botón del cuadrado y 2 clics (esquinas opuestas) o arrastrar. Fondo translúcido del mismo color. Se ajusta desde cualquiera de las 4 esquinas. |
+| Trayectoria | Botón de la línea quebrada con flecha: un clic por punto y **doble clic** (o Intro / Esc) para terminar. |
+| Nota con poste / Comentario | Botón de la "T" con palito o del bocadillo y un clic: se abre una ventana para escribir el texto (Intro = otra línea, Ctrl+Intro = aceptar). Doble clic en la nota para cambiar el texto o los colores. |
 | Extensión de Fibonacci | Botón de Fibonacci y 3 clics: inicio, final y retroceso. Doble clic en ella para cambiar niveles y colores. Se mueve arrastrándola y cada punto por separado. |
 | Retroceso de Fibonacci | Botón de Fibonacci con rayas (o Alt+F) y 2 clics: inicio y final. Doble clic para niveles y colores. |
 | Posición larga / corta | Botón verde-rojo (larga) o rojo-verde (corta) y un clic en el precio de entrada. Arrastra los puntos azules para mover stop, objetivo, entrada y el final de la caja; arrastra la caja para moverla entera. Al pasar el ratón por encima se ven objetivo, stop, cantidad y ratio riesgo/beneficio. Doble clic para tamaño de cuenta, riesgo y colores. |
 | Cambiar de símbolo | Clic en la lista de seguimiento de la derecha. Cambian los 6 gráficos a la vez. Para acciones, oro, plata y forex hay que pegar antes las claves (ver «Acciones, oro, plata y forex»). |
 | Añadir un símbolo | Escribe el par (p. ej. `ETHUSDT`) abajo en la lista y pulsa **+**. Para quitarlo, pasa el ratón por encima y pulsa ✕. |
+| Mover y ampliar el gráfico | **Arrastra** con el ratón en cualquier dirección (arriba/abajo mueve el precio y quita el encuadre automático; el botón **A** abajo a la derecha lo vuelve a poner). **Rueda** del ratón o pellizco del touchpad: zoom. Dos dedos de lado en el touchpad: desplazarse en el tiempo. Arrastrar la escala de precios la estira o encoge. |
 | Cuadrícula / gráfico grande | **Doble clic** en un gráfico lo pone en grande; doble clic otra vez vuelve a los 6. También **Uno grande** (abre el gráfico seleccionado). En grande, **Tab** pasa al siguiente gráfico y **Mayús+Tab** al anterior. |
 | Cambiar la temporalidad de un gráfico | Haz clic en el gráfico (queda con borde azul) y pulsa la temporalidad en la barra de arriba (45s, 1m, 2m, 5m, 10m, 15m, 30m, 1h, 3h, 4h, D, S, M). |
 | Mostrar/ocultar indicadores | En la leyenda de arriba a la izquierda, con el ojo de cada indicador (como en TradingView). `⌄ 5` despliega la lista y `⌃` la recoge. |
@@ -142,7 +153,7 @@ Las fórmulas de EMA, SMA, RSI y pivots son las mismas que usa TradingView, así
 
 - El gráfico de **45s** sale de velas de 1 segundo; al abrirlo carga unas 5 horas de historia (más si te desplazas a la izquierda).
 - Todavía **no hay usuario y contraseña**: por eso el servidor sólo acepta conexiones desde el mismo ordenador. El acceso desde el móvil y para toda la familia llega en la fase 5.
-- Líneas de tendencia en la fase 3. Las alertas (fase 2) de momento sólo funcionan con cripto de Binance.
+- Las alertas (fase 2) de momento sólo funcionan con cripto de Binance.
 
 ---
 

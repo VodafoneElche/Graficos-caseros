@@ -1,4 +1,4 @@
-import type { FibExt, Position } from './types';
+import type { FibExt, Position, Shape, ShapeType } from './types';
 
 // Configuración de las herramientas de dibujo de la FASE 3, copiada de los menús
 // de TradingView de Jose. Se deja aquí ya preparada para usarla al construirlas.
@@ -117,4 +117,20 @@ export function positionDefaults(): Pick<
     compact: p.compactStats,
     alwaysStats: p.alwaysShowStats,
   };
+}
+
+/** Estilo inicial de las formas (como las trae TradingView; la tendencia blanca fina, como la usa Jose). */
+export function shapeDefaults(type: ShapeType): Omit<Shape, 'id' | 'symbol' | 'type' | 'points'> {
+  switch (type) {
+    case 'trend':
+      return { color: '#ffffff', width: 1, style: 0, extend: 'none' };
+    case 'rect':
+      return { color: '#9c27b0', width: 1, style: 0, fill: true, fillColor: 'rgba(156,39,176,0.2)' };
+    case 'path':
+      return { color: '#2962ff', width: 2, style: 0, arrow: true };
+    case 'note':
+      return { color: '#2962ff', width: 1, style: 0, text: '', textColor: '#ffffff', fontSize: 12 };
+    case 'comment':
+      return { color: '#2962ff', width: 1, style: 0, text: '', textColor: '#ffffff', fontSize: 14 };
+  }
 }

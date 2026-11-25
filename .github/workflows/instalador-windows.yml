@@ -1,11 +1,22 @@
 name: Instalador Windows
 
-# Genera el instalador .exe en un Windows de GitHub y lo publica en
-# "Releases" con el nombre "Última versión".
+# Publica una versión nueva del programa en GitHub Releases cada vez que llega
+# a GitHub un cambio con la versión de package.json SUBIDA (mayor que la última
+# publicada). El programa instalado la detecta solo y ofrece actualizarse.
+#
+# Cada versión tiene su propia release con la etiqueta v<versión> (v0.3.3,
+# v0.3.4...) y tres archivos:
+#   Graficos-familia-Setup.exe            el instalador
+#   Graficos-familia-Setup.exe.blockmap   para descargar solo lo que cambia
+#   latest.yml                            lo que lee el programa para saber si hay versión nueva
+# Además se copia el instalador a la release "ultima-version" para que el enlace
+# antiguo siga funcionando.
+#
+# Si la versión NO se ha subido, no se publica nada (ver PUBLICAR.md).
 
 on:
   push:
-    branches: [main, fase-1-prototipo, claude/project-thread-nmpz7o, claude/project-thread-jsrbm1]
+    branches: [main, fase-1-prototipo, 'claude/**']
     paths-ignore: ["**.md", "iniciar.*"]
   workflow_dispatch:
 
@@ -14,11 +25,42 @@ permissions:
 
 concurrency:
   group: instalador-windows
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    outputs:
+      publicar: ${{ steps.v.outputs.publicar }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ¿La versión es nueva?
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          ULTIMA=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null | sed 's/^v//' || true)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Versión en package.json: $VERSION · última publicada: ${ULTIMA:-ninguna}"
+          # Solo se publica si es MAYOR que la última (evita que una rama antigua
+          # quite funciones a la familia).
+          if [ -z "$ULTIMA" ] || [ "$ULTIMA" = "ultima-version" ] || \
+             node -e "const a='$VERSION'.split('.').map(Number),b='$ULTIMA'.split('.').map(Number);for(let i=0;i<3;i++){if(a[i]>b[i])process.exit(0);if(a[i]<b[i])process.exit(1)}process.exit(1)"; then
+            echo "publicar=si" >> "$GITHUB_OUTPUT"
+          else
+            echo "publicar=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::No se publica: la versión $VERSION no es mayor que la última publicada ($ULTIMA). Sube la versión en package.json (ver PUBLICAR.md)."
+          fi
+
   windows:
+    needs: comprobar
+    if: needs.comprobar.outputs.publicar == 'si'
     runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.comprobar.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,13 +77,30 @@ jobs:
       - name: Crear el instalador
         run: npx electron-builder --win nsis --x64 --publish never
 
-      - name: Publicar en Releases
+      - name: Publicar la versión en Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l release
+          test -f release/latest.yml
+          git log -1 --format='%B' > notas.md
+          printf '\n---\nRama %s · commit %s. El programa instalado se actualiza solo; para instalarlo de cero descarga el `.exe` de abajo.\n' "$GITHUB_REF_NAME" "${GITHUB_SHA::7}" >> notas.md
+          gh release create "v$VERSION" \
+            release/Graficos-familia-Setup.exe \
+            release/Graficos-familia-Setup.exe.blockmap \
+            release/latest.yml \
+            --title "Gráficos familia v$VERSION" \
+            --notes-file notas.md \
+            --target "$GITHUB_SHA" --latest
+
+      - name: Copiar a "ultima-version" (enlace antiguo)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete ultima-version --yes --cleanup-tag || true
-          gh release create ultima-version release/*.exe \
-            --title "Última versión (${GITHUB_REF_NAME})" \
-            --notes "Instalador de Windows generado automáticamente desde la rama ${GITHUB_REF_NAME} (commit ${GITHUB_SHA::7}). Descarga el archivo .exe de abajo y ábrelo." \
-            --target "$GITHUB_SHA" --latest
+          gh release create ultima-version release/Graficos-familia-Setup.exe \
+            --title "Última versión (v$VERSION)" \
+            --notes "Copia del instalador de la v$VERSION. Mejor usa https://github.com/${GITHUB_REPOSITORY}/releases/latest" \
+            --target "$GITHUB_SHA" --latest=false
