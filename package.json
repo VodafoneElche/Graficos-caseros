@@ -1,6 +1,6 @@
 {
   "name": "graficos-familia",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Gráficos familia: app privada de gráficos de trading",
   "scripts": {
     "dev": "vite",

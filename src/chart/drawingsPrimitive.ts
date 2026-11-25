@@ -9,7 +9,7 @@ import type {
   Time,
 } from 'lightweight-charts';
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
-import type { Drawing, FibExt, LineStyleId, Position, Shape } from '../core/types';
+import type { Candle, Drawing, FibExt, LineStyleId, Position, Shape } from '../core/types';
 import { extendSegment, NOTE_STEM, rectCorners, SHAPE_FONT, textBox, type Pt } from './shapeGeom';
 
 // Dibuja los dibujos del usuario: líneas horizontales y verticales (con grosor
@@ -27,6 +27,8 @@ export interface DrawingsHost {
   hoveredId(): string | null;
   /** Último precio (para la ganancia/pérdida abierta de la posición). */
   lastPrice(): number | null;
+  /** Velas del gráfico (para saber si la posición llegó al objetivo o al stop). */
+  candles?(): Candle[];
   /** ¿La línea tiene una alerta activa? (se pinta un despertador sobre ella) */
   hasAlert?(id: string): boolean;
 }
@@ -47,6 +49,52 @@ export function fibLevelXs(d: FibExt, xs: number[], W: number): [number, number]
   const xa = Math.min(p, q);
   const xb = Math.max(p, q);
   return [d.extend === 'left' || d.extend === 'both' ? 0 : xa, d.extend === 'right' || d.extend === 'both' ? W : xb];
+}
+
+/** Resultado de la posición según las velas: abierta, o cerrada en el objetivo o en el stop. */
+export interface PositionOutcome {
+  status: 'open' | 'target' | 'stop';
+  /** Instante (inicio de la vela) y precio de salida; si está abierta, la última vela dentro de la caja y su cierre. */
+  time: number;
+  price: number;
+}
+
+/**
+ * Recorre las velas desde la de la entrada hasta el final de la caja y busca la
+ * primera que toca el objetivo o el stop (como TradingView). Si una misma vela
+ * toca los dos, se cuenta el stop (no se sabe qué llegó antes).
+ */
+export function positionOutcome(d: Position, cs: Candle[]): PositionOutcome | null {
+  const n = cs.length;
+  if (!n) return null;
+  // Última vela que empieza en o antes de la entrada.
+  let lo = 0;
+  let hi = n - 1;
+  let i0 = -1;
+  while (lo <= hi) {
+    const m = (lo + hi) >> 1;
+    if (cs[m].time <= d.entry.time) {
+      i0 = m;
+      lo = m + 1;
+    } else hi = m - 1;
+  }
+  if (i0 < 0) {
+    if (cs[0].time > d.endTime) return null;
+    i0 = 0;
+  }
+  // Entrada puesta más allá de la última vela (en el futuro): todavía no hay recorrido.
+  if (i0 === n - 1 && n >= 2 && d.entry.time - cs[i0].time >= cs[i0].time - cs[i0 - 1].time) return null;
+  const long = d.side === 'long';
+  let last = i0;
+  for (let i = i0; i < n && cs[i].time <= d.endTime; i++) {
+    const c = cs[i];
+    last = i;
+    const hitStop = long ? c.low <= d.stop : c.high >= d.stop;
+    const hitTarget = long ? c.high >= d.target : c.low <= d.target;
+    if (hitStop) return { status: 'stop', time: c.time, price: d.stop };
+    if (hitTarget) return { status: 'target', time: c.time, price: d.target };
+  }
+  return { status: 'open', time: cs[last].time, price: cs[last].close };
 }
 
 /** Cálculos de la posición, como las estadísticas de TradingView. */
@@ -347,6 +395,42 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     ctx.fillRect(x1, Math.min(E, T), w, Math.abs(T - E));
     ctx.fillStyle = d.stopColor;
     ctx.fillRect(x1, Math.min(E, S), w, Math.abs(S - E));
+
+    // Recorrido del precio desde la entrada (como TradingView): la zona entre la entrada
+    // y el precio de salida (o el último precio) se pinta más fuerte hasta esa vela, y una
+    // línea discontinua une la entrada con la salida.
+    const out = this.host.candles ? positionOutcome(d, this.host.candles()) : null;
+    let exitX: number | null = null;
+    let exitY: number | null = null;
+    if (out) {
+      const xo = this.host.timeToX(out.time);
+      const yo = s.priceToCoordinate(out.price);
+      if (xo != null && yo != null) {
+        exitX = Math.max(x1, Math.min(x2, xo * hr));
+        exitY = yo * vr;
+        const up = exitY < E;
+        const winning = (d.side === 'long') === up;
+        ctx.fillStyle = winning ? d.targetColor : d.stopColor;
+        if (exitX > x1) ctx.fillRect(x1, Math.min(E, exitY), exitX - x1, Math.abs(exitY - E));
+        ctx.strokeStyle = d.lineColor;
+        ctx.lineWidth = Math.max(1, hr);
+        ctx.setLineDash([4 * hr, 4 * hr]);
+        ctx.beginPath();
+        ctx.moveTo(xa * hr, E);
+        ctx.lineTo(exitX, exitY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (out.status !== 'open') {
+          // Marca de cierre en la vela donde tocó el objetivo o el stop.
+          ctx.strokeStyle = out.status === 'target' ? '#089981' : '#f23645';
+          ctx.lineWidth = Math.max(1, Math.round(1.5 * hr));
+          ctx.beginPath();
+          ctx.moveTo(exitX, Math.min(E, exitY));
+          ctx.lineTo(exitX, Math.max(E, exitY));
+          ctx.stroke();
+        }
+      }
+    }
     // Línea de entrada.
     ctx.strokeStyle = d.lineColor;
     ctx.lineWidth = Math.max(1, Math.round(hr));
@@ -357,7 +441,7 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
 
     const show = selected || d.alwaysStats || this.host.hoveredId() === d.id;
     if (show) {
-      const st = positionStats(d, this.host.lastPrice());
+      const st = positionStats(d, out ? out.price : this.host.lastPrice());
       const fp = (v: number) => this.host.formatPrice(v);
       const qtyTxt = nf(st.qty, st.qty >= 100 ? 0 : st.qty >= 1 ? 2 : 4);
       const tgt = d.compact
@@ -367,7 +451,12 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
         ? `Stop: ${fp(st.riskPer)} (${nf(st.stopPct)}%) ${nf(st.riskAmount)}`
         : `Stop: ${fp(st.riskPer)} (${nf(st.stopPct)}%), Importe: ${nf(st.riskAmount)}`;
       const mid: string[] = [];
-      if (st.pnl != null) mid.push(`${d.compact ? 'P&L' : 'P&L abierta'}: ${nf(st.pnl)}`);
+      const closed = out && out.status !== 'open';
+      if (closed) mid.push(out!.status === 'target' ? 'Cerrada en objetivo ✓' : 'Cerrada en stop ✗');
+      if (st.pnl != null) {
+        const pct = d.entry.price ? ((out ? out.price : this.host.lastPrice() ?? d.entry.price) - d.entry.price) / d.entry.price * 100 * (d.side === 'long' ? 1 : -1) : 0;
+        mid.push(`${closed ? 'P&L cerrada' : d.compact ? 'P&L' : 'P&L abierta'}: ${nf(st.pnl)} (${nf(pct)}%)`);
+      }
       mid.push(`Cantidad: ${qtyTxt}`);
       mid.push(`${d.compact ? 'R/B' : 'Ratio riesgo/beneficio'}: ${nf(st.rr)}`);
       const fs = Math.round(d.textSize * vr);
@@ -394,7 +483,26 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
       const sOut = S < E ? S - off : S + off;
       box([tgt], cx, tOut, '#089981');
       box([stp], cx, sOut, '#f23645');
-      box(mid, cx, E, d.side === 'long' ? 'rgba(8,153,129,0.9)' : 'rgba(242,54,69,0.9)');
+      const midBg = closed ? (out!.status === 'target' ? 'rgba(8,153,129,0.95)' : 'rgba(242,54,69,0.95)') : d.side === 'long' ? 'rgba(8,153,129,0.9)' : 'rgba(242,54,69,0.9)';
+      box(mid, cx, E, midBg);
+    } else if (out && out.status !== 'open' && exitX != null && exitY != null) {
+      // Sin pasar el ratón: etiqueta pequeña con el resultado junto a la salida, siempre visible.
+      const st = positionStats(d, out.price);
+      const txt = `${out.status === 'target' ? '✓' : '✗'} ${nf(st.pnl ?? 0)}`;
+      const fs = Math.round(11 * vr);
+      ctx.font = `${fs}px -apple-system, Segoe UI, Roboto, sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(txt).width + 10 * hr;
+      const th = fs * 1.5;
+      const bx = Math.min(W - tw - 2, exitX + 4 * hr);
+      const by = out.status === 'target' ? (T < E ? T - th - 2 * vr : T + 2 * vr) : S < E ? S - th - 2 * vr : S + 2 * vr;
+      ctx.fillStyle = out.status === 'target' ? '#089981' : '#f23645';
+      ctx.beginPath();
+      (ctx as any).roundRect ? (ctx as any).roundRect(bx, by, tw, th, 3 * hr) : ctx.rect(bx, by, tw, th);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(txt, bx + 5 * hr, by + th / 2);
     }
 
     if (selected) {

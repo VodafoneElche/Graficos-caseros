@@ -254,6 +254,7 @@ export class ChartPanel {
       formatTime: (t) => this.formatTime(t),
       hoveredId: () => this.hoverId,
       lastPrice: () => (this.candles.length ? this.candles[this.candles.length - 1].close : null),
+      candles: () => this.candles,
       hasAlert: (id) => alertsStore.alertDrawings.has(id),
     });
     this.candle.attachPrimitive(this.drawPrim);
